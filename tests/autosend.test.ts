@@ -463,6 +463,53 @@ describe("autosend component", () => {
     expect(second.deduped).toBe(false);
   });
 
+  test("queue drains across multiple runs when emails exceed perRunLimit", async () => {
+    const t = makeTest();
+
+    await t.mutation("config:setConfig", {
+      config: {
+        testMode: false,
+        autosendApiKey: "as_test_key",
+        defaultFrom: "noreply@example.com",
+        // rateLimitRps defaults to 2, so 3 emails require 2 runs
+      },
+    });
+
+    setMockFetch(async () => {
+      return new Response(JSON.stringify({ emailId: "provider_drain" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    // Enqueue 3 emails (exceeds perRunLimit of 2)
+    await t.mutation("emails:sendEmail", {
+      to: ["a@example.com"],
+      subject: "Drain 1",
+      html: "<p>1</p>",
+    });
+    await t.mutation("emails:sendEmail", {
+      to: ["b@example.com"],
+      subject: "Drain 2",
+      html: "<p>2</p>",
+    });
+    await t.mutation("emails:sendEmail", {
+      to: ["c@example.com"],
+      subject: "Drain 3",
+      html: "<p>3</p>",
+    });
+
+    // First run: processes 2, signals more remain
+    const first = await t.action("queue:processQueue", {});
+    expect(first.sentCount).toBe(2);
+    expect(first.hasMoreDue).toBe(true);
+
+    // Second run: processes remaining 1, queue is drained
+    const second = await t.action("queue:processQueue", {});
+    expect(second.sentCount).toBe(1);
+    expect(second.hasMoreDue).toBe(false);
+  });
+
   test("config merge and replace semantics", async () => {
     const t = makeTest();
 

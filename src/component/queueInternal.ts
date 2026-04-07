@@ -1,4 +1,4 @@
-import { internalAction } from "./_generated/server";
+import { internalAction, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { sendOne, type ProviderSendPayload } from "./provider";
 import { processQueueResultValidator, type ProcessQueueResult } from "./types";
@@ -79,6 +79,14 @@ function buildProviderPayload(params: {
     unsubscribeGroupId: email.unsubscribeGroupId,
   };
 }
+
+export const scheduleDrain = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    await ctx.scheduler.runAfter(0, internal.queueInternal.processDueQueue, {});
+  },
+});
 
 export const processDueQueue = internalAction({
   args: {
@@ -241,12 +249,18 @@ export const processDueQueue = internalAction({
       }
     }
 
+    const hasMoreDue = due.length >= perRunLimit;
+
+    if (hasMoreDue) {
+      await ctx.runMutation(internal.queueInternal.scheduleDrain, {});
+    }
+
     return {
       processedCount,
       sentCount,
       retriedCount,
       failedCount,
-      hasMoreDue: due.length >= perRunLimit,
+      hasMoreDue,
     };
   },
 });
