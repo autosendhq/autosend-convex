@@ -2,6 +2,7 @@ import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { sendOne, type ProviderSendPayload } from "./provider";
 import { processQueueResultValidator, type ProcessQueueResult } from "./types";
+import { DEFAULT_SEND_BATCH_SIZE } from "./config";
 import { internal } from "./_generated/api";
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -85,29 +86,36 @@ export const processDueQueue = internalAction({
   },
   returns: processQueueResultValidator,
   handler: async (ctx, args): Promise<ProcessQueueResult> => {
+    // Use a generous initial limit for the due-email fetch. We may re-slice
+    // after reading config, but this avoids reading config at all when idle.
+    const initialLimit = args.batchSize ?? DEFAULT_SEND_BATCH_SIZE;
+
+    const now = Date.now();
+    const allDue = await ctx.runQuery(internal.queries.dueEmails, {
+      now,
+      limit: initialLimit,
+    });
+
+    // Fast path: nothing to process — skip config read entirely.
+    if (allDue.length === 0) {
+      return {
+        processedCount: 0,
+        sentCount: 0,
+        retriedCount: 0,
+        failedCount: 0,
+        hasMoreDue: false,
+      };
+    }
+
+    // Only read config when there's actual work to do.
     const globals = await ctx.runQuery(internal.config.getGlobalsInternal, {});
 
     const requestedBatchSize = args.batchSize ?? globals.sendBatchSize;
     const limitedByBatch = Math.max(1, Math.min(requestedBatchSize, globals.sendBatchSize));
     const perRunLimit = Math.max(1, Math.min(limitedByBatch, globals.rateLimitRps));
 
-    const now = Date.now();
-    const [queued, retrying] = await Promise.all([
-      ctx.runQuery(internal.queries.dueByStatus, {
-        status: "queued",
-        now,
-        limit: perRunLimit,
-      }),
-      ctx.runQuery(internal.queries.dueByStatus, {
-        status: "retrying",
-        now,
-        limit: perRunLimit,
-      }),
-    ]);
-
-    const due = [...queued, ...retrying]
-      .sort((a, b) => a.nextAttemptAt - b.nextAttemptAt)
-      .slice(0, perRunLimit);
+    // Re-slice to the actual config-driven limit.
+    const due = allDue.slice(0, perRunLimit);
 
     // Fail fast if API key is missing — no point claiming and failing each email individually.
     const apiKey = globals.autosendApiKey;
@@ -233,16 +241,12 @@ export const processDueQueue = internalAction({
       }
     }
 
-    const hasMoreDue: boolean = await ctx.runQuery(internal.queries.hasAnyDue, {
-      now: Date.now(),
-    });
-
     return {
       processedCount,
       sentCount,
       retriedCount,
       failedCount,
-      hasMoreDue,
+      hasMoreDue: due.length >= perRunLimit,
     };
   },
 });
