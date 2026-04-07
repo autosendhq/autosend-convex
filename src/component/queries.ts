@@ -126,24 +126,32 @@ export const listEvents = query({
   },
 });
 
-export const hasAnyDue = internalQuery({
+export const dueEmails = internalQuery({
   args: {
     now: v.number(),
+    limit: v.number(),
   },
-  returns: v.boolean(),
+  returns: v.array(emailDocValidator),
   handler: async (ctx, args) => {
     const statuses: Array<"queued" | "retrying"> = ["queued", "retrying"];
+    const all = [];
 
     for (const status of statuses) {
-      const first = await ctx.db
+      const dbQuery = ctx.db
         .query("emails")
         .withIndex("by_status_nextAttemptAt", (q) =>
           q.eq("status", status).lte("nextAttemptAt", args.now),
         )
-        .first();
-      if (first) return true;
+        .order("asc");
+
+      for await (const email of dbQuery) {
+        all.push(email);
+        if (all.length >= args.limit * 2) break;
+      }
     }
 
-    return false;
+    return all
+      .sort((a, b) => a.nextAttemptAt - b.nextAttemptAt)
+      .slice(0, args.limit);
   },
 });

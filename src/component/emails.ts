@@ -1,6 +1,7 @@
 import { internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { loadGlobals } from "./config";
+import { internal } from "./_generated/api";
 import {
   cancelResultValidator,
   emailDocValidator,
@@ -206,6 +207,9 @@ export const sendEmail = mutation({
       updatedAt: now,
     });
 
+    // Trigger immediate queue processing so the email doesn't wait for the next cron tick.
+    await ctx.scheduler.runAfter(0, internal.queueInternal.processDueQueue, {});
+
     return {
       emailId,
       deduped: false,
@@ -320,7 +324,8 @@ export const sendBulk = mutation({
     }
 
     if (insertedCount > 0) {
-      // no-op; queue processing can be triggered explicitly via `queue.processQueue`
+      // Trigger immediate queue processing so emails don't wait for the next cron tick.
+      await ctx.scheduler.runAfter(0, internal.queueInternal.processDueQueue, {});
     }
 
     return {

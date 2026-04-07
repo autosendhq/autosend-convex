@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import { createHmac } from "node:crypto";
 
@@ -12,7 +12,15 @@ function makeTest() {
 
 const originalFetch = globalThis.fetch;
 
+beforeEach(() => {
+  // Fake timers prevent convex-test's setTimeout(0) from auto-firing
+  // scheduled functions (e.g. the immediate processing trigger in sendEmail).
+  // Tests that need queue processing call processQueue explicitly.
+  vi.useFakeTimers();
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   globalThis.fetch = originalFetch;
 });
 
