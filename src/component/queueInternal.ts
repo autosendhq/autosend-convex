@@ -84,7 +84,7 @@ export const scheduleDrain = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    await ctx.scheduler.runAfter(0, internal.queueInternal.processDueQueue, {});
+    await ctx.scheduler.runAfter(2000, internal.queueInternal.processDueQueue, {});
   },
 });
 
