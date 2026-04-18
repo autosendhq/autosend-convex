@@ -92,6 +92,7 @@ export class AutoSend {
     ctx: MutationCtx,
     args: {
       recipients: string[];
+      recipientData?: Record<string, Record<string, unknown>>;
       from?: string;
       fromName?: string;
       replyTo?: string;

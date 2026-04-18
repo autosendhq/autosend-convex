@@ -9,7 +9,7 @@ A [Convex component](https://docs.convex.dev/components) for transactional email
 
 ## Features
 
-- Queue-first sending: `sendEmail` and `sendBulk` enqueue email jobs instead of sending inline.
+- Queue-first sending: `sendEmail` and `sendBulk` enqueue email jobs and automatically trigger queue processing.
 - Deterministic idempotency: duplicate requests resolve to the same `emailId`.
 - Retry handling: retryable failures (network, `429`, `5xx`) are retried with configurable backoff.
 - Delivery lifecycle: full status model (`queued`, `sending`, `retrying`, `sent`, `failed`, `canceled`).
@@ -105,10 +105,10 @@ Default webhook path: `/webhooks/autosend`.
 
 ## Usage
 
-### Send and process queue
+### Send an email
 
 ```ts
-import { action, mutation } from "./_generated/server";
+import { mutation } from "./_generated/server";
 import { autosend } from "./email";
 
 export const sendWelcome = mutation({
@@ -122,16 +122,9 @@ export const sendWelcome = mutation({
     });
   },
 });
-
-export const processEmailQueue = action({
-  args: {},
-  handler: async (ctx) => {
-    return await autosend.processQueue(ctx);
-  },
-});
 ```
 
-Important: `sendEmail` and `sendBulk` enqueue only. Trigger `processQueue` from an action/cron worker.
+`sendEmail` and `sendBulk` enqueue emails and automatically trigger queue processing. The `processQueue` action is available for manual recovery or cron-based sweep, but is not required for normal operation.
 
 ### Bulk send
 
@@ -142,6 +135,25 @@ await autosend.sendBulk(ctx, {
   html: "<p>News</p>",
 });
 ```
+
+### Bulk send with per-recipient data
+
+Use `recipientData` to interpolate `{{placeholders}}` in `subject`, `html`, and `text` per recipient:
+
+```ts
+await autosend.sendBulk(ctx, {
+  recipients: ["alice@example.com", "bob@example.com"],
+  recipientData: {
+    "alice@example.com": { name: "Alice", role: "admin" },
+    "bob@example.com": { name: "Bob", role: "member" },
+  },
+  subject: "Welcome, {{name}}",
+  html: "<p>Hi {{name}}, you are now a {{role}}.</p>",
+  text: "Hi {{name}}, you are now a {{role}}.",
+});
+```
+
+When `recipientData` is provided, per-recipient data is also used as `dynamicData` for that recipient (overriding the shared `dynamicData` if both are set).
 
 ### CC, BCC, and attachments
 
@@ -210,8 +222,8 @@ await autosend.cleanupOldDeliveries(ctx, { olderThanMs: 7 * 24 * 60 * 60 * 1000 
 
 | Method | Context | Returns | Notes |
 |---|---|---|---|
-| `sendEmail(ctx, args)` | mutation | `{ emailId, deduped }` | Enqueues one email (single recipient) |
-| `sendBulk(ctx, args)` | mutation | `{ emailIds, acceptedCount }` | Enqueues up to 100 recipients |
+| `sendEmail(ctx, args)` | mutation | `{ emailId, deduped }` | Enqueues and auto-processes one email |
+| `sendBulk(ctx, args)` | mutation | `{ emailIds, acceptedCount }` | Enqueues and auto-processes up to 100 recipients |
 | `status(ctx, { emailId })` | query | `EmailDoc \| null` | Reads current email state |
 | `statusBatch(ctx, { emailIds })` | query | `(EmailDoc \| null)[]` | Batch status for multiple emails |
 | `listEvents(ctx, { emailId, limit? })` | query | `EmailEvent[]` | Webhook events for an email (newest first, default limit 50, max 200) |
@@ -250,6 +262,7 @@ await autosend.cleanupOldDeliveries(ctx, { olderThanMs: 7 * 24 * 60 * 60 * 1000 
 
 Same as `sendEmail` except:
 - `recipients: string[]` replaces `to` (up to 100 recipients)
+- `recipientData?: Record<string, Record<string, unknown>>` — per-recipient merge fields keyed by email address; interpolates `{{placeholders}}` in `subject`, `html`, and `text`
 - `idempotencyKeyPrefix: string` replaces `idempotencyKey`
 - No `toName` (one email per recipient)
 

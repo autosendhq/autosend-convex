@@ -62,6 +62,7 @@ export type SendEmailArgs = Infer<typeof sendEmailArgsValidator>;
 
 export const sendBulkArgsValidator = v.object({
   recipients: v.array(v.string()),
+  recipientData: v.optional(v.any()),
   from: v.optional(v.string()),
   fromName: v.optional(v.string()),
   replyTo: v.optional(v.string()),

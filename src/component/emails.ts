@@ -217,7 +217,22 @@ export const sendEmail = mutation({
   },
 });
 
+function interpolateTemplate(template: string, data: Record<string, unknown>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
+    return key in data ? String(data[key]) : match;
+  });
+}
+
 function buildBulkRecipientPayload(args: SendBulkArgs & { from: string; recipient: string }) {
+  const data = (args.recipientData as Record<string, Record<string, unknown>> | undefined)?.[args.recipient];
+
+  let { subject, html, text } = args;
+  if (data) {
+    if (subject) subject = interpolateTemplate(subject, data);
+    if (html) html = interpolateTemplate(html, data);
+    if (text) text = interpolateTemplate(text, data);
+  }
+
   return {
     to: [args.recipient],
     from: args.from,
@@ -226,11 +241,11 @@ function buildBulkRecipientPayload(args: SendBulkArgs & { from: string; recipien
     replyToName: args.replyToName,
     cc: args.cc,
     bcc: args.bcc,
-    subject: args.subject,
-    html: args.html,
-    text: args.text,
+    subject,
+    html,
+    text,
     templateId: args.templateId,
-    dynamicData: args.dynamicData,
+    dynamicData: data ?? args.dynamicData,
     attachments: args.attachments,
     unsubscribeGroupId: args.unsubscribeGroupId,
   };
@@ -307,11 +322,11 @@ export const sendBulk = mutation({
         replyToName: args.replyToName,
         cc: args.cc,
         bcc: args.bcc,
-        subject: args.subject,
-        html: args.html,
-        text: args.text,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
         templateId: args.templateId,
-        dynamicData: args.dynamicData,
+        dynamicData: payload.dynamicData,
         attachments: args.attachments,
         metadata: args.metadata,
         unsubscribeGroupId: args.unsubscribeGroupId,
