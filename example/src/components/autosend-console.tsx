@@ -3,11 +3,21 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { Send, Inbox, Settings2, Activity, Mail } from "lucide-react";
+import { Send, Inbox, Settings2, Activity, Mail, Users } from "lucide-react";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 
 import type { AttachmentItem, QueueResult } from "./autosend-console/shared";
@@ -15,12 +25,45 @@ import { SendView } from "./autosend-console/send-view";
 import { InboxView, useMailTmLiveSync } from "./autosend-console/inbox-view";
 import { OpsView } from "./autosend-console/ops-view";
 import { SetupView } from "./autosend-console/setup-view";
+import { ContactsView } from "./autosend-console/contacts-view";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract a clean, user-friendly message from Convex errors.
+ * Convex errors look like:
+ *   "[CONVEX A(module:fn)] [Request ID: ...] Server Error Uncaught Error: Actual message at ..."
+ * We strip all the boilerplate and return just the meaningful part.
+ */
+function friendlyError(err: unknown, fallback: string): string {
+  if (!(err instanceof Error)) return fallback;
+  let msg = err.message;
+
+  // Strip Convex wrapper noise
+  msg = msg
+    .replace(/\[CONVEX [^\]]*\]\s*/g, "")
+    .replace(/\[Request ID: [^\]]*\]\s*/g, "")
+    .replace(/Server Error\s*/g, "");
+
+  // Strip all "Uncaught Error:" prefixes (Convex can nest them)
+  while (msg.startsWith("Uncaught Error:")) {
+    msg = msg.slice("Uncaught Error:".length).trim();
+  }
+
+  // Take first line only (before stack traces)
+  msg = msg.split("\n")[0]!.trim();
+  msg = msg.replace(/\s+at\s+(async\s+)?[\w.]+\s*\(.*$/, "").trim();
+
+  return msg || fallback;
+}
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type View = "send" | "inbox" | "ops" | "setup";
+type View = "send" | "inbox" | "contacts" | "ops" | "setup";
 
 const DEMO_DEFAULT_FROM = "ray@con.taskos.dev";
 const DEMO_DEFAULT_REPLY_TO = "ray@con.taskos.dev";
@@ -60,6 +103,15 @@ export default function AutoSendConsole() {
   const syncAllInboxes = useAction(api.mailtm.syncAllInboxes);
   const fetchMessage = useAction(api.mailtm.fetchMessage);
   const deleteInbox = useMutation(api.mailtm.deleteInbox);
+  const createContactAction = useAction(api.contacts.createContact);
+  const getContactAction = useAction(api.contacts.getContact);
+  const upsertContactAction = useAction(api.contacts.upsertContact);
+  const deleteContactAction = useAction(api.contacts.deleteContact);
+  const deleteContactByUserIdAction = useAction(api.contacts.deleteContactByUserId);
+  const removeContactsByEmailsAction = useAction(api.contacts.removeContactsByEmails);
+  const searchContactsAction = useAction(api.contacts.searchContacts);
+  const bulkUpdateContactsAction = useAction(api.contacts.bulkUpdateContacts);
+  const getUnsubscribeGroupsAction = useAction(api.contacts.getUnsubscribeGroups);
 
   // Form state — setup
   const [sandboxTo, setSandboxTo] = useState("");
@@ -106,6 +158,15 @@ export default function AutoSendConsole() {
   const [cleanupOldResult, setCleanupOldResult] = useState<any>(null);
   const [cleanupAbandonedResult, setCleanupAbandonedResult] = useState<any>(null);
   const [cleanupDeliveryResult, setCleanupDeliveryResult] = useState<any>(null);
+  const [contactsLoading, setContactsLoading] = useState(false);
+
+  // Confirm dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    description: string;
+    actionLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // ---------------------------------------------------------------------------
   // Effects
@@ -199,7 +260,7 @@ export default function AutoSendConsole() {
         `Secrets synced \u2014 API Key: ${result.hasApiKey ? "yes" : "no"}, Webhook: ${result.hasWebhookSecret ? "yes" : "no"}`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to sync secrets");
+      toast.error(friendlyError(err, "Failed to sync secrets"));
     }
   }, [syncSecretsFromEnv]);
 
@@ -210,7 +271,7 @@ export default function AutoSendConsole() {
         await setConfig({ testMode: enabled });
         toast.success(enabled ? "Test mode ON \u2014 emails redirect to sandbox" : "Test mode OFF");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to save test mode");
+        toast.error(friendlyError(err, "Failed to save test mode"));
       }
     },
     [setConfig],
@@ -228,7 +289,7 @@ export default function AutoSendConsole() {
       });
       toast.success("Config saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save config");
+      toast.error(friendlyError(err, "Failed to save config"));
     }
   }, [setConfig, testMode, sandboxTo, providerCompatibilityMode]);
 
@@ -268,7 +329,7 @@ export default function AutoSendConsole() {
         result.deduped ? `Deduped \u2014 ${result.emailId}` : `Queued \u2014 ${result.emailId}`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Queue failed");
+      toast.error(friendlyError(err, "Queue processing failed"));
     }
   }, [sendEmail, to, toName, subject, html, idempotencyKey, composeMode, templateId, dynamicData, fromOverride, fromName, replyToOverride, replyToName, ccField, bccField, unsubscribeGroupId, emailMetadata, attachments]);
 
@@ -318,7 +379,7 @@ export default function AutoSendConsole() {
       });
       toast.success(`Queued ${result.acceptedCount} emails`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Bulk queue failed");
+      toast.error(friendlyError(err, "Bulk queue failed"));
     }
   }, [sendBulk, bulkRecipients, subject, html, idempotencyPrefix, recipientDataField, composeMode, templateId, dynamicData, fromOverride, fromName, replyToOverride, replyToName, ccField, bccField, unsubscribeGroupId, emailMetadata, attachments]);
 
@@ -329,7 +390,7 @@ export default function AutoSendConsole() {
       setQueueResult(result);
       toast.success(`Processed ${result.processedCount} \u2014 sent ${result.sentCount}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Queue failed");
+      toast.error(friendlyError(err, "Queue processing failed"));
     } finally {
       setProcessing(false);
     }
@@ -348,40 +409,52 @@ export default function AutoSendConsole() {
         `Dry-run: ${oldResult.emailIds.length} old, ${abandonedResult.emailIds.length} abandoned`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Cleanup failed");
+      toast.error(friendlyError(err, "Cleanup failed"));
     } finally {
       setCleanupRunning(false);
     }
   }, [cleanupOldEmails, cleanupAbandonedEmails]);
 
-  const onExecuteCleanupOld = useCallback(async () => {
-    if (!confirm("Delete old terminal emails? This cannot be undone.")) return;
-    setCleanupRunning(true);
-    try {
-      const result = await executeCleanupOld({});
-      setCleanupOldResult(result);
-      setDryRunOldResult(null);
-      toast.success(`Deleted ${result.deletedCount} old emails`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Cleanup failed");
-    } finally {
-      setCleanupRunning(false);
-    }
+  const onExecuteCleanupOld = useCallback(() => {
+    setConfirmDialog({
+      title: "Delete old emails",
+      description: "This will permanently delete old terminal emails. This action cannot be undone.",
+      actionLabel: "Delete",
+      onConfirm: async () => {
+        setCleanupRunning(true);
+        try {
+          const result = await executeCleanupOld({});
+          setCleanupOldResult(result);
+          setDryRunOldResult(null);
+          toast.success(`Deleted ${result.deletedCount} old emails`);
+        } catch (err) {
+          toast.error(friendlyError(err, "Cleanup failed"));
+        } finally {
+          setCleanupRunning(false);
+        }
+      },
+    });
   }, [executeCleanupOld]);
 
-  const onExecuteCleanupAbandoned = useCallback(async () => {
-    if (!confirm("Recover abandoned sending emails? They will be re-queued.")) return;
-    setCleanupRunning(true);
-    try {
-      const result = await executeCleanupAbandoned({});
-      setCleanupAbandonedResult(result);
-      setDryRunAbandonedResult(null);
-      toast.success(`Recovered ${result.recoveredCount} abandoned emails`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Recovery failed");
-    } finally {
-      setCleanupRunning(false);
-    }
+  const onExecuteCleanupAbandoned = useCallback(() => {
+    setConfirmDialog({
+      title: "Recover abandoned emails",
+      description: "This will recover abandoned sending emails by re-queuing them for delivery.",
+      actionLabel: "Recover",
+      onConfirm: async () => {
+        setCleanupRunning(true);
+        try {
+          const result = await executeCleanupAbandoned({});
+          setCleanupAbandonedResult(result);
+          setDryRunAbandonedResult(null);
+          toast.success(`Recovered ${result.recoveredCount} abandoned emails`);
+        } catch (err) {
+          toast.error(friendlyError(err, "Recovery failed"));
+        } finally {
+          setCleanupRunning(false);
+        }
+      },
+    });
   }, [executeCleanupAbandoned]);
 
   const onCleanupDeliveries = useCallback(async () => {
@@ -391,7 +464,7 @@ export default function AutoSendConsole() {
       setCleanupDeliveryResult(result);
       toast.success(`Deleted ${result.deletedCount} old webhook delivery records`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delivery cleanup failed");
+      toast.error(friendlyError(err, "Delivery cleanup failed"));
     } finally {
       setCleanupRunning(false);
     }
@@ -438,7 +511,7 @@ export default function AutoSendConsole() {
       toast.success(`Created ${result.address}`);
       await syncInbox({ inboxId: result.inboxId as Id<"mailtmInboxes"> });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Inbox creation failed");
+      toast.error(friendlyError(err, "Inbox creation failed"));
     }
   }, [createInbox, inboxLabel, syncInbox]);
 
@@ -448,7 +521,7 @@ export default function AutoSendConsole() {
         const result = await syncInbox({ inboxId });
         toast.success(`Synced ${result.syncedCount} messages`);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Sync failed");
+        toast.error(friendlyError(err, "Sync failed"));
       }
     },
     [syncInbox],
@@ -469,7 +542,7 @@ export default function AutoSendConsole() {
         await deleteInbox({ inboxId });
         toast.success("Inbox deleted");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Delete failed");
+        toast.error(friendlyError(err, "Delete failed"));
       }
     },
     [deleteInbox],
@@ -482,7 +555,7 @@ export default function AutoSendConsole() {
         await fetchMessage({ inboxId: selectedInboxId, messageId });
         setSelectedMessageId(messageId);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load");
+        toast.error(friendlyError(err, "Failed to load message"));
       }
     },
     [fetchMessage, selectedInboxId],
@@ -494,11 +567,191 @@ export default function AutoSendConsole() {
         const result = await cancelEmail({ emailId });
         toast.success(result.canceled ? "Canceled" : "Cannot cancel \u2014 already terminal");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Cancel failed");
+        toast.error(friendlyError(err, "Cancel failed"));
       }
     },
     [cancelEmail],
   );
+
+  // ---------------------------------------------------------------------------
+  // Contacts handlers (wrap actions with toast + loading)
+  // ---------------------------------------------------------------------------
+
+  const onCreateContact = useCallback(
+    async (args: { email: string; firstName?: string; lastName?: string; userId?: string; customFields?: unknown }) => {
+      setContactsLoading(true);
+      try {
+        const result = await createContactAction(args);
+        toast.success(`Created contact ${result.contact.email}`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to create contact"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [createContactAction],
+  );
+
+  const onGetContact = useCallback(
+    async (args: { contactId: string }) => {
+      setContactsLoading(true);
+      try {
+        const result = await getContactAction(args);
+        toast.success(`Found contact ${result.contact.email}`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to get contact"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [getContactAction],
+  );
+
+  const onUpsertContact = useCallback(
+    async (args: { email: string; firstName?: string; lastName?: string; userId?: string; customFields?: unknown }) => {
+      setContactsLoading(true);
+      try {
+        const result = await upsertContactAction(args);
+        toast.success(`Upserted contact ${result.contact.email}`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to upsert contact"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [upsertContactAction],
+  );
+
+  const onDeleteContact = useCallback(
+    async (args: { contactId: string }) => {
+      setContactsLoading(true);
+      try {
+        const result = await deleteContactAction(args);
+        toast.success(result.message);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to delete contact"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [deleteContactAction],
+  );
+
+  const onDeleteContactByUserId = useCallback(
+    async (args: { userId: string }) => {
+      setContactsLoading(true);
+      try {
+        const result = await deleteContactByUserIdAction(args);
+        toast.success(result.message);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to delete contact by userId"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [deleteContactByUserIdAction],
+  );
+
+  const onRemoveContactsByEmails = useCallback(
+    async (args: { emails: string[] }) => {
+      setContactsLoading(true);
+      try {
+        const result = await removeContactsByEmailsAction(args);
+        toast.success(result.message);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to remove contacts"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [removeContactsByEmailsAction],
+  );
+
+  const onSearchContacts = useCallback(
+    async (args: { emails: string[] }) => {
+      setContactsLoading(true);
+      try {
+        const result = await searchContactsAction(args);
+        toast.success(`Found ${result.contacts.length} contact(s)`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to search contacts"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [searchContactsAction],
+  );
+
+  const onBulkUpdateContacts = useCallback(
+    async (args: { contacts: Array<{ email: string; firstName?: string; lastName?: string; userId?: string; customFields?: unknown }>; runWorkflow?: boolean }) => {
+      setContactsLoading(true);
+      try {
+        const result = await bulkUpdateContactsAction(args);
+        toast.success(`Bulk update: ${result.successCount} succeeded, ${result.failedCount} failed`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Bulk update failed"));
+        throw err;
+      } finally {
+        setContactsLoading(false);
+      }
+    },
+    [bulkUpdateContactsAction],
+  );
+
+  const onGetUnsubscribeGroups = useCallback(
+    async (args: { contactId: string }) => {
+      try {
+        const result = await getUnsubscribeGroupsAction(args);
+        toast.success(`Found ${result.groups.length} unsubscribe group(s)`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to get unsubscribe groups"));
+        throw err;
+      }
+    },
+    [getUnsubscribeGroupsAction],
+  );
+
+  const onGenerateTempEmail = useCallback(async (): Promise<string> => {
+    try {
+      const result = await createInbox({ label: "Contact" });
+      toast.success(`Generated temp email: ${result.address}`);
+      return result.address;
+    } catch (err) {
+      toast.error(friendlyError(err, "Failed to generate temp email"));
+      throw err;
+    }
+  }, [createInbox]);
+
+  const tempMailDomains = useMemo(() => {
+    if (!inboxes || inboxes.length === 0) return [];
+    const domains = new Set<string>();
+    for (const inbox of inboxes) {
+      const domain = inbox.address.split("@")[1];
+      if (domain) domains.add(domain.toLowerCase());
+    }
+    return Array.from(domains);
+  }, [inboxes]);
+
+  const existingInboxAddresses = useMemo(() => {
+    if (!inboxes) return [];
+    return inboxes.map((inbox) => inbox.address);
+  }, [inboxes]);
 
   // ---------------------------------------------------------------------------
   // Nav items
@@ -507,6 +760,7 @@ export default function AutoSendConsole() {
   const NAV: { key: View; label: string; icon: React.ReactNode }[] = [
     { key: "send", label: "Send & Monitor", icon: <Send className="size-4" /> },
     { key: "inbox", label: "Test Inbox", icon: <Inbox className="size-4" /> },
+    { key: "contacts", label: "Contacts", icon: <Users className="size-4" /> },
     { key: "ops", label: "Operations", icon: <Activity className="size-4" /> },
     { key: "setup", label: "Configuration", icon: <Settings2 className="size-4" /> },
   ];
@@ -670,6 +924,23 @@ export default function AutoSendConsole() {
             onOpenMessage={onOpenMessage}
           />
         )}
+        {view === "contacts" && (
+          <ContactsView
+            onCreateContact={onCreateContact}
+            onGetContact={onGetContact}
+            onUpsertContact={onUpsertContact}
+            onDeleteContact={onDeleteContact}
+            onDeleteContactByUserId={onDeleteContactByUserId}
+            onRemoveContactsByEmails={onRemoveContactsByEmails}
+            onSearchContacts={onSearchContacts}
+            onBulkUpdateContacts={onBulkUpdateContacts}
+            onGetUnsubscribeGroups={onGetUnsubscribeGroups}
+            onGenerateTempEmail={onGenerateTempEmail}
+            tempMailDomains={tempMailDomains}
+            existingInboxAddresses={existingInboxAddresses}
+            loading={contactsLoading}
+          />
+        )}
         {view === "ops" && (
           <OpsView
             onProcessQueue={onProcessQueue}
@@ -706,6 +977,37 @@ export default function AutoSendConsole() {
           />
         )}
       </div>
+
+      {/* ── Confirm dialog ── */}
+      <AlertDialog
+        open={confirmDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDialog(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDialog(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                confirmDialog?.onConfirm();
+                setConfirmDialog(null);
+              }}
+            >
+              {confirmDialog?.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
