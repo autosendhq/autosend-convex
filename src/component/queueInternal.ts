@@ -178,6 +178,7 @@ export const processDueQueue = internalAction({
           apiKey: apiKey!,
           baseUrl: globals.autosendBaseUrl,
           compatibilityMode: globals.providerCompatibilityMode,
+          projectId: globals.projectId,
         });
 
         if (result.ok) {

@@ -82,5 +82,6 @@ export default defineSchema({
     cleanupDeliveriesMs: v.optional(v.number()),
     providerCompatibilityMode: v.optional(providerCompatibilityModeValidator),
     autosendBaseUrl: v.optional(v.string()),
+    projectId: v.optional(v.string()),
   }).index("by_singleton", ["singleton"]),
 });

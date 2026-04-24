@@ -99,6 +99,7 @@ export const configUpdateValidator = v.object({
   cleanupDeliveriesMs: v.optional(v.number()),
   providerCompatibilityMode: v.optional(providerCompatibilityModeValidator),
   autosendBaseUrl: v.optional(v.string()),
+  projectId: v.optional(v.string()),
 });
 
 export type ConfigUpdate = Infer<typeof configUpdateValidator>;
@@ -118,6 +119,7 @@ export const safeConfigValidator = v.object({
   cleanupDeliveriesMs: v.number(),
   providerCompatibilityMode: providerCompatibilityModeValidator,
   autosendBaseUrl: v.string(),
+  projectId: v.optional(v.string()),
   hasApiKey: v.boolean(),
   hasWebhookSecret: v.boolean(),
 });
@@ -219,3 +221,58 @@ export const deliveryCleanupResultValidator = v.object({
 export type DeliveryCleanupResult = Infer<typeof deliveryCleanupResultValidator>;
 
 export const TERMINAL_STATUSES: EmailStatus[] = ["sent", "failed", "canceled"];
+
+// ---------------------------------------------------------------------------
+// Projects API types
+// ---------------------------------------------------------------------------
+
+export const projectDomainValidator = v.object({
+  id: v.string(),
+  domain: v.string(),
+  verificationStatus: v.string(),
+});
+
+export type ProjectDomain = Infer<typeof projectDomainValidator>;
+
+export const projectValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  domain: v.union(v.string(), v.null()),
+  domains: v.array(projectDomainValidator),
+  regionKey: v.union(v.string(), v.null()),
+  industry: v.union(v.string(), v.null()),
+  logo: v.union(v.string(), v.null()),
+  address: v.any(),
+  trackingOpen: v.boolean(),
+  trackingClick: v.boolean(),
+});
+
+export type Project = Infer<typeof projectValidator>;
+
+export const createProjectArgsValidator = v.object({
+  name: v.string(),
+  domain: v.optional(v.string()),
+  regionKey: v.optional(v.string()),
+  apiKey: v.optional(v.string()),
+});
+
+export type CreateProjectArgs = Infer<typeof createProjectArgsValidator>;
+
+export const listProjectsResultValidator = v.object({
+  projects: v.array(projectValidator),
+});
+
+export type ListProjectsResult = Infer<typeof listProjectsResultValidator>;
+
+export const createProjectResultValidator = v.object({
+  project: projectValidator,
+});
+
+export type CreateProjectResult = Infer<typeof createProjectResultValidator>;
+
+export const deleteProjectResultValidator = v.object({
+  success: v.boolean(),
+  message: v.string(),
+});
+
+export type DeleteProjectResult = Infer<typeof deleteProjectResultValidator>;

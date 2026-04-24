@@ -12,9 +12,15 @@ export type { ComponentApi } from "../component/_generated/component.js";
 export type {
   Attachment,
   ConfigUpdate,
+  CreateProjectArgs,
+  CreateProjectResult,
+  DeleteProjectResult,
   DeliveryCleanupResult,
   EmailRecipient,
   EmailStatus,
+  ListProjectsResult,
+  Project,
+  ProjectDomain,
   ProviderCompatibilityMode,
   SafeConfig,
   SendBulkArgs,
@@ -26,10 +32,16 @@ export {
   cancelResultValidator,
   cleanupResultValidator,
   configUpdateValidator,
+  createProjectArgsValidator,
+  createProjectResultValidator,
+  deleteProjectResultValidator,
   deliveryCleanupResultValidator,
   emailRecipientValidator,
   emailStatusValidator,
+  listProjectsResultValidator,
   processQueueResultValidator,
+  projectDomainValidator,
+  projectValidator,
   providerCompatibilityModeValidator,
   safeConfigValidator,
   sendBulkArgsValidator,
@@ -159,6 +171,7 @@ export class AutoSend {
         cleanupDeliveriesMs?: number;
         providerCompatibilityMode?: "strict" | "lenient";
         autosendBaseUrl?: string;
+        projectId?: string;
       };
       replace?: boolean;
     },
@@ -209,6 +222,37 @@ export class AutoSend {
     } = {},
   ) {
     return await ctx.runAction(this.component.cleanup.cleanupOldDeliveries, args);
+  }
+
+  async listProjects(
+    ctx: ActionCtx,
+    args: {
+      apiKey?: string;
+    } = {},
+  ) {
+    return await ctx.runAction(this.component.projects.listProjects, args);
+  }
+
+  async createProject(
+    ctx: ActionCtx,
+    args: {
+      name: string;
+      domain?: string;
+      regionKey?: string;
+      apiKey?: string;
+    },
+  ) {
+    return await ctx.runAction(this.component.projects.createProject, args);
+  }
+
+  async deleteProject(
+    ctx: ActionCtx,
+    args: {
+      projectId: string;
+      apiKey?: string;
+    },
+  ) {
+    return await ctx.runAction(this.component.projects.deleteProject, args);
   }
 
   async handleCallback(
