@@ -276,3 +276,183 @@ export const deleteProjectResultValidator = v.object({
 });
 
 export type DeleteProjectResult = Infer<typeof deleteProjectResultValidator>;
+
+// ---------------------------------------------------------------------------
+// Contacts API types
+// ---------------------------------------------------------------------------
+
+export const contactValidator = v.object({
+  id: v.string(),
+  email: v.string(),
+  firstName: v.union(v.string(), v.null()),
+  lastName: v.union(v.string(), v.null()),
+  userId: v.union(v.string(), v.null()),
+  customFields: v.any(),
+  listIds: v.optional(v.array(v.string())),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+  projectId: v.optional(v.string()),
+});
+
+export type Contact = Infer<typeof contactValidator>;
+
+export const unsubscribeGroupValidator = v.object({
+  groupId: v.string(),
+  name: v.string(),
+});
+
+export type UnsubscribeGroup = Infer<typeof unsubscribeGroupValidator>;
+
+// --- Contact args validators ---
+
+export const createContactArgsValidator = v.object({
+  email: v.string(),
+  firstName: v.optional(v.string()),
+  lastName: v.optional(v.string()),
+  userId: v.optional(v.string()),
+  listIds: v.optional(v.array(v.string())),
+  customFields: v.optional(v.any()),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type CreateContactArgs = Infer<typeof createContactArgsValidator>;
+
+export const getContactArgsValidator = v.object({
+  contactId: v.string(),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type GetContactArgs = Infer<typeof getContactArgsValidator>;
+
+export const upsertContactArgsValidator = v.object({
+  email: v.string(),
+  firstName: v.optional(v.string()),
+  lastName: v.optional(v.string()),
+  userId: v.optional(v.string()),
+  listIds: v.optional(v.array(v.string())),
+  customFields: v.optional(v.any()),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type UpsertContactArgs = Infer<typeof upsertContactArgsValidator>;
+
+export const deleteContactArgsValidator = v.object({
+  contactId: v.string(),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type DeleteContactArgs = Infer<typeof deleteContactArgsValidator>;
+
+export const deleteContactByUserIdArgsValidator = v.object({
+  userId: v.string(),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type DeleteContactByUserIdArgs = Infer<typeof deleteContactByUserIdArgsValidator>;
+
+export const removeContactsByEmailsArgsValidator = v.object({
+  emails: v.array(v.string()),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type RemoveContactsByEmailsArgs = Infer<typeof removeContactsByEmailsArgsValidator>;
+
+export const searchContactsArgsValidator = v.object({
+  emails: v.array(v.string()),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type SearchContactsArgs = Infer<typeof searchContactsArgsValidator>;
+
+export const getUnsubscribeGroupsArgsValidator = v.object({
+  contactId: v.string(),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type GetUnsubscribeGroupsArgs = Infer<typeof getUnsubscribeGroupsArgsValidator>;
+
+export const bulkUpdateContactsArgsValidator = v.object({
+  contacts: v.array(
+    v.object({
+      email: v.string(),
+      firstName: v.optional(v.string()),
+      lastName: v.optional(v.string()),
+      userId: v.optional(v.string()),
+      customFields: v.optional(v.any()),
+    }),
+  ),
+  runWorkflow: v.optional(v.boolean()),
+  apiKey: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+});
+
+export type BulkUpdateContactsArgs = Infer<typeof bulkUpdateContactsArgsValidator>;
+
+// --- Contact result validators ---
+
+export const createContactResultValidator = v.object({
+  contact: contactValidator,
+});
+
+export type CreateContactResult = Infer<typeof createContactResultValidator>;
+
+export const getContactResultValidator = v.object({
+  contact: contactValidator,
+});
+
+export type GetContactResult = Infer<typeof getContactResultValidator>;
+
+export const upsertContactResultValidator = v.object({
+  contact: contactValidator,
+});
+
+export type UpsertContactResult = Infer<typeof upsertContactResultValidator>;
+
+export const deleteContactResultValidator = v.object({
+  success: v.boolean(),
+  message: v.string(),
+});
+
+export type DeleteContactResult = Infer<typeof deleteContactResultValidator>;
+
+export const deleteContactByUserIdResultValidator = v.object({
+  success: v.boolean(),
+  message: v.string(),
+});
+
+export type DeleteContactByUserIdResult = Infer<typeof deleteContactByUserIdResultValidator>;
+
+export const removeContactsByEmailsResultValidator = v.object({
+  success: v.boolean(),
+  message: v.string(),
+});
+
+export type RemoveContactsByEmailsResult = Infer<typeof removeContactsByEmailsResultValidator>;
+
+export const searchContactsResultValidator = v.object({
+  contacts: v.array(contactValidator),
+});
+
+export type SearchContactsResult = Infer<typeof searchContactsResultValidator>;
+
+export const getUnsubscribeGroupsResultValidator = v.object({
+  groups: v.array(unsubscribeGroupValidator),
+});
+
+export type GetUnsubscribeGroupsResult = Infer<typeof getUnsubscribeGroupsResultValidator>;
+
+export const bulkUpdateContactsResultValidator = v.object({
+  successCount: v.number(),
+  failedCount: v.number(),
+  totalCount: v.number(),
+});
+
+export type BulkUpdateContactsResult = Infer<typeof bulkUpdateContactsResultValidator>;

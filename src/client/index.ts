@@ -11,43 +11,75 @@ import type { ComponentApi } from "../component/_generated/component.js";
 export type { ComponentApi } from "../component/_generated/component.js";
 export type {
   Attachment,
+  BulkUpdateContactsResult,
   ConfigUpdate,
+  Contact,
+  CreateContactArgs,
+  CreateContactResult,
   CreateProjectArgs,
   CreateProjectResult,
+  DeleteContactByUserIdResult,
+  DeleteContactResult,
   DeleteProjectResult,
   DeliveryCleanupResult,
   EmailRecipient,
   EmailStatus,
+  GetContactResult,
+  GetUnsubscribeGroupsResult,
   ListProjectsResult,
   Project,
   ProjectDomain,
   ProviderCompatibilityMode,
+  RemoveContactsByEmailsResult,
   SafeConfig,
+  SearchContactsResult,
   SendBulkArgs,
   SendEmailArgs,
+  UnsubscribeGroup,
+  UpsertContactResult,
 } from "../component/types.js";
 export {
   abandonedCleanupResultValidator,
   attachmentValidator,
+  bulkUpdateContactsArgsValidator,
+  bulkUpdateContactsResultValidator,
   cancelResultValidator,
   cleanupResultValidator,
   configUpdateValidator,
+  contactValidator,
+  createContactArgsValidator,
+  createContactResultValidator,
   createProjectArgsValidator,
   createProjectResultValidator,
+  deleteContactArgsValidator,
+  deleteContactByUserIdArgsValidator,
+  deleteContactByUserIdResultValidator,
+  deleteContactResultValidator,
   deleteProjectResultValidator,
   deliveryCleanupResultValidator,
   emailRecipientValidator,
   emailStatusValidator,
+  getContactArgsValidator,
+  getContactResultValidator,
+  getUnsubscribeGroupsArgsValidator,
+  getUnsubscribeGroupsResultValidator,
   listProjectsResultValidator,
   processQueueResultValidator,
   projectDomainValidator,
   projectValidator,
   providerCompatibilityModeValidator,
+  removeContactsByEmailsArgsValidator,
+  removeContactsByEmailsResultValidator,
   safeConfigValidator,
+  searchContactsArgsValidator,
+  searchContactsResultValidator,
   sendBulkArgsValidator,
   sendBulkResultValidator,
   sendEmailArgsValidator,
   sendResultValidator,
+  unsubscribeGroupValidator,
+  upsertContactArgsValidator,
+  upsertContactResultValidator,
   webhookHandleResultValidator,
 } from "../component/types.js";
 
@@ -253,6 +285,142 @@ export class AutoSend {
     },
   ) {
     return await ctx.runAction(this.component.projects.deleteProject, args);
+  }
+
+  get contacts() {
+    const component = this.component;
+    return {
+      async create(
+        ctx: ActionCtx,
+        args: {
+          email: string;
+          firstName?: string;
+          lastName?: string;
+          userId?: string;
+          listIds?: string[];
+          customFields?: unknown;
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(component.contacts.createContact, args);
+      },
+
+      async get(
+        ctx: ActionCtx,
+        args: {
+          contactId: string;
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(component.contacts.getContact, args);
+      },
+
+      async upsert(
+        ctx: ActionCtx,
+        args: {
+          email: string;
+          firstName?: string;
+          lastName?: string;
+          userId?: string;
+          listIds?: string[];
+          customFields?: unknown;
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(component.contacts.upsertContact, args);
+      },
+
+      async delete(
+        ctx: ActionCtx,
+        args: {
+          contactId: string;
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(component.contacts.deleteContact, args);
+      },
+
+      async deleteByUserId(
+        ctx: ActionCtx,
+        args: {
+          userId: string;
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(
+          component.contacts.deleteContactByUserId,
+          args,
+        );
+      },
+
+      async removeByEmails(
+        ctx: ActionCtx,
+        args: {
+          emails: string[];
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(
+          component.contacts.removeContactsByEmails,
+          args,
+        );
+      },
+
+      async search(
+        ctx: ActionCtx,
+        args: {
+          emails: string[];
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(
+          component.contacts.searchContactsByEmails,
+          args,
+        );
+      },
+
+      async getUnsubscribeGroups(
+        ctx: ActionCtx,
+        args: {
+          contactId: string;
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(
+          component.contacts.getUnsubscribeGroups,
+          args,
+        );
+      },
+
+      async bulkUpdate(
+        ctx: ActionCtx,
+        args: {
+          contacts: Array<{
+            email: string;
+            firstName?: string;
+            lastName?: string;
+            userId?: string;
+            customFields?: unknown;
+          }>;
+          runWorkflow?: boolean;
+          apiKey?: string;
+          projectId?: string;
+        },
+      ) {
+        return await ctx.runAction(
+          component.contacts.bulkUpdateContacts,
+          args,
+        );
+      },
+    };
   }
 
   async handleCallback(

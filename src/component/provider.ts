@@ -1,5 +1,6 @@
 import type {
   Attachment,
+  Contact,
   EmailRecipient,
   Project,
   ProviderCompatibilityMode,
@@ -543,4 +544,636 @@ export async function deleteProject(
     success: Boolean(data?.success),
     message: typeof data?.message === "string" ? data.message : "Project deleted successfully",
   };
+}
+
+// ---------------------------------------------------------------------------
+// Contacts API
+// ---------------------------------------------------------------------------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateEmail(email: string): void {
+  if (!EMAIL_RE.test(email)) {
+    throw new Error(`Invalid email address: "${email}"`);
+  }
+}
+
+function parseContact(data: unknown): Contact {
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid contact data in API response");
+  }
+  const obj = data as Record<string, unknown>;
+  const id = typeof obj.id === "string" && obj.id.length > 0 ? obj.id : null;
+  const email = typeof obj.email === "string" && obj.email.length > 0 ? obj.email : null;
+  if (!id) {
+    throw new Error("Contact response missing required 'id' field");
+  }
+  if (!email) {
+    throw new Error("Contact response missing required 'email' field");
+  }
+  return {
+    id,
+    email,
+    firstName: typeof obj.firstName === "string" ? obj.firstName : null,
+    lastName: typeof obj.lastName === "string" ? obj.lastName : null,
+    userId: typeof obj.userId === "string" ? obj.userId : null,
+    customFields: obj.customFields ?? null,
+    listIds: Array.isArray(obj.listIds) ? obj.listIds.map(String) : undefined,
+    createdAt: typeof obj.createdAt === "string" ? obj.createdAt : "",
+    updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : "",
+    projectId: typeof obj.projectId === "string" ? obj.projectId : undefined,
+  };
+}
+
+export async function createContact(
+  args: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    userId?: string;
+    listIds?: string[];
+    customFields?: unknown;
+  },
+  options: ProviderOptions,
+): Promise<Contact> {
+  validateEmail(args.email);
+  validateProjectConfig(options);
+
+  if (args.customFields !== undefined) {
+    await ensureCustomFields(args.customFields, options);
+  }
+
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts`;
+
+  const body: Record<string, unknown> = { email: args.email };
+  if (args.firstName !== undefined) body.firstName = args.firstName;
+  if (args.lastName !== undefined) body.lastName = args.lastName;
+  if (args.userId !== undefined) body.userId = args.userId;
+  if (args.listIds !== undefined) body.listIds = args.listIds;
+  if (args.customFields !== undefined) body.customFields = args.customFields;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data;
+  return parseContact(data);
+}
+
+export async function getContact(
+  contactId: string,
+  options: ProviderOptions,
+): Promise<Contact> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/${encodeURIComponent(contactId)}`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "GET",
+        headers: buildHeaders(options),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data;
+  return parseContact(data);
+}
+
+export async function upsertContact(
+  args: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    userId?: string;
+    listIds?: string[];
+    customFields?: unknown;
+  },
+  options: ProviderOptions,
+): Promise<Contact> {
+  validateEmail(args.email);
+  validateProjectConfig(options);
+
+  if (args.customFields !== undefined) {
+    await ensureCustomFields(args.customFields, options);
+  }
+
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/email`;
+
+  const body: Record<string, unknown> = { email: args.email };
+  if (args.firstName !== undefined) body.firstName = args.firstName;
+  if (args.lastName !== undefined) body.lastName = args.lastName;
+  if (args.userId !== undefined) body.userId = args.userId;
+  if (args.listIds !== undefined) body.listIds = args.listIds;
+  if (args.customFields !== undefined) body.customFields = args.customFields;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data;
+  return parseContact(data);
+}
+
+export async function deleteContact(
+  contactId: string,
+  options: ProviderOptions,
+): Promise<{ success: boolean; message: string }> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/${encodeURIComponent(contactId)}`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: buildHeaders(options),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  return {
+    success: Boolean(data?.success),
+    message: typeof data?.message === "string" ? data.message : "Contact deleted successfully",
+  };
+}
+
+export async function deleteContactByUserId(
+  userId: string,
+  options: ProviderOptions,
+): Promise<{ success: boolean; message: string }> {
+  validateProjectConfig(options);
+  if (!userId || userId.trim().length === 0) {
+    throw new Error("userId is required for deleteContactByUserId.");
+  }
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/email/userId/${encodeURIComponent(userId)}`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: buildHeaders(options),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  return {
+    success: Boolean(data?.success),
+    message: typeof data?.message === "string" ? data.message : "Contact deleted successfully",
+  };
+}
+
+export async function removeContactsByEmails(
+  emails: string[],
+  options: ProviderOptions,
+): Promise<{ success: boolean; message: string }> {
+  if (emails.length === 0) {
+    throw new Error("At least one email is required for removeContactsByEmails.");
+  }
+  for (const email of emails) {
+    validateEmail(email);
+  }
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/remove`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify({ emails }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  return {
+    success: Boolean(data?.success),
+    message: typeof data?.message === "string" ? data.message : "Contacts removed successfully",
+  };
+}
+
+export async function searchContactsByEmails(
+  emails: string[],
+  options: ProviderOptions,
+): Promise<Contact[]> {
+  for (const email of emails) {
+    validateEmail(email);
+  }
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/search/emails`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify({ emails }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  const contacts = (data?.data as Record<string, unknown> | undefined)?.contacts;
+  if (!Array.isArray(contacts)) {
+    throw new Error("AutoSend search contacts response missing contacts array");
+  }
+
+  return contacts.map(parseContact);
+}
+
+export async function getContactUnsubscribeGroups(
+  contactId: string,
+  options: ProviderOptions,
+): Promise<Array<{ groupId: string; name: string }>> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/${encodeURIComponent(contactId)}/unsubscribe-groups`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "GET",
+        headers: buildHeaders(options),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  const groups = (data?.data as Record<string, unknown> | undefined)?.groups;
+  if (!Array.isArray(groups)) {
+    throw new Error("AutoSend unsubscribe groups response missing groups array");
+  }
+
+  return groups.map((g: unknown) => {
+    const item = g as Record<string, unknown>;
+    return {
+      groupId: String(item.groupId ?? ""),
+      name: String(item.name ?? ""),
+    };
+  });
+}
+
+const BULK_UPDATE_MAX_CONTACTS = 100;
+
+export async function bulkUpdateContacts(
+  args: {
+    contacts: Array<{
+      email: string;
+      firstName?: string;
+      lastName?: string;
+      userId?: string;
+      customFields?: unknown;
+    }>;
+    runWorkflow?: boolean;
+  },
+  options: ProviderOptions,
+): Promise<{ successCount: number; failedCount: number; totalCount: number }> {
+  if (args.contacts.length === 0) {
+    throw new Error("At least one contact is required for bulk update.");
+  }
+  if (args.contacts.length > BULK_UPDATE_MAX_CONTACTS) {
+    throw new Error(
+      `Bulk update supports a maximum of ${BULK_UPDATE_MAX_CONTACTS} contacts per call (got ${args.contacts.length}).`,
+    );
+  }
+  for (const contact of args.contacts) {
+    validateEmail(contact.email);
+  }
+  validateProjectConfig(options);
+
+  // Collect all custom field keys across all contacts and ensure definitions exist
+  const mergedFields: Record<string, unknown> = {};
+  for (const contact of args.contacts) {
+    if (contact.customFields && typeof contact.customFields === "object" && !Array.isArray(contact.customFields)) {
+      Object.assign(mergedFields, contact.customFields);
+    }
+  }
+  if (Object.keys(mergedFields).length > 0) {
+    await ensureCustomFields(mergedFields, options);
+  }
+
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contacts/bulk-update`;
+
+  const body: Record<string, unknown> = { contacts: args.contacts };
+  if (args.runWorkflow !== undefined) body.runWorkflow = args.runWorkflow;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data as
+    | Record<string, unknown>
+    | undefined;
+  return {
+    successCount: typeof data?.successCount === "number" ? data.successCount : 0,
+    failedCount: typeof data?.failedCount === "number" ? data.failedCount : 0,
+    totalCount: typeof data?.totalCount === "number" ? data.totalCount : 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Custom field auto-creation
+// ---------------------------------------------------------------------------
+
+const RESERVED_FIELD_NAMES = new Set([
+  "email",
+  "firstName",
+  "lastName",
+  "userId",
+  "mobile",
+  "createdAt",
+  "updatedAt",
+]);
+
+function inferFieldType(value: unknown): string {
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "number") return "number";
+  if (typeof value === "string") {
+    // ISO date-like strings → date
+    if (/^\d{4}-\d{2}-\d{2}(T|\s)/.test(value)) return "date";
+    return "string";
+  }
+  return "string";
+}
+
+/**
+ * Ensures that every key in `customFields` has a corresponding custom field
+ * definition in AutoSend. Creates any missing ones, inferring type from value.
+ * Silently ignores 409 (already exists) so concurrent calls are safe.
+ */
+export async function ensureCustomFields(
+  customFields: unknown,
+  options: ProviderOptions,
+): Promise<void> {
+  if (
+    !customFields ||
+    typeof customFields !== "object" ||
+    Array.isArray(customFields)
+  ) {
+    return;
+  }
+
+  const fields = customFields as Record<string, unknown>;
+  const keys = Object.keys(fields).filter((k) => !RESERVED_FIELD_NAMES.has(k));
+  if (keys.length === 0) return;
+
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+
+  // Fetch existing field definitions
+  const listEndpoint = `${baseUrl}/v1/custom-fields?includeReservedFields=false`;
+  let existingNames = new Set<string>();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  try {
+    const response = await fetch(listEndpoint, {
+      method: "GET",
+      headers: buildHeaders(options),
+      signal: controller.signal,
+    });
+    if (response.ok) {
+      const body = await safeParseJson(response);
+      const data = (body as Record<string, unknown> | undefined)?.data as
+        | Record<string, unknown>
+        | undefined;
+      const fieldList = data?.customFields;
+      if (Array.isArray(fieldList)) {
+        existingNames = new Set(
+          fieldList
+            .filter(
+              (f: unknown): f is Record<string, unknown> =>
+                typeof f === "object" && f !== null && typeof (f as Record<string, unknown>).fieldName === "string",
+            )
+            .map((f) => f.fieldName as string),
+        );
+      }
+    }
+  } catch {
+    // If listing fails, try to create all — 409s will be harmless
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const missing = keys.filter((k) => !existingNames.has(k));
+  if (missing.length === 0) return;
+
+  // Create missing fields in parallel
+  const createEndpoint = `${baseUrl}/v1/custom-fields`;
+  await Promise.all(
+    missing.map(async (fieldName) => {
+      const fieldType = inferFieldType(fields[fieldName]);
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+        try {
+          const response = await fetch(createEndpoint, {
+            method: "POST",
+            headers: buildHeaders(options),
+            body: JSON.stringify({ fieldName, fieldType }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          // 409 = already exists, perfectly fine
+          if (!response.ok && response.status !== 409) {
+            // Non-critical — log but don't throw
+            await response.text();
+          }
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      } catch {
+        // Non-critical — contact creation will still proceed
+      }
+    }),
+  );
 }
