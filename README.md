@@ -25,6 +25,7 @@ A [Convex component](https://docs.convex.dev/components) for transactional email
 - Safe config reads: `getConfig` returns all non-secret config values (never exposes API key or webhook secret).
 - Test sandbox mode: optional recipient rewriting via `sandboxTo`.
 - Maintenance actions: cleanup for old terminal emails, abandoned sending jobs, and stale webhook delivery records. Supports dry-run preview before executing.
+- Project management: create, list, and delete projects programmatically via Account API Keys (`ASA_` prefix).
 
 ## Installation
 
@@ -312,6 +313,85 @@ Required headers:
 | `cleanupDeliveriesMs` | `number` | `604800000` (7 days) | Age threshold for pruning webhook delivery records |
 | `providerCompatibilityMode` | `"strict" \| "lenient"` | `"strict"` | Response parsing strictness for provider variance |
 | `autosendBaseUrl` | `string` | `https://api.autosend.com` | Base URL for provider API |
+| `projectId` | `string` | unset | Project ID for Account API Keys (required with `ASA_` prefix keys) |
+
+### Multi-Project Support
+
+AutoSend supports two API key types:
+
+- **Project API Key** (`AS_` prefix): Scoped to a single project. No additional configuration needed.
+- **Account API Key** (`ASA_` prefix): Cross-project scope. Requires `projectId` to be set.
+
+When `projectId` is configured, every API request includes an `x-project-id` header. If you use an Account API Key without setting `projectId`, the component throws a clear error at send time.
+
+```ts
+// Single-project setup (Project API Key) — no projectId needed
+await autosend.setConfig(ctx, {
+  config: {
+    autosendApiKey: "AS_your_project_key",
+    defaultFrom: "noreply@example.com",
+  },
+});
+
+// Multi-project setup (Account API Key) — projectId required
+await autosend.setConfig(ctx, {
+  config: {
+    autosendApiKey: "ASA_your_account_key",
+    projectId: "proj_abc123",
+    defaultFrom: "noreply@example.com",
+  },
+});
+```
+
+For multiple projects from a single Convex deployment, mount the component once per project:
+
+```ts
+// convex/convex.config.ts
+const app = defineApp();
+app.use(autosend, { name: "marketing" });
+app.use(autosend, { name: "transactional" });
+export default app;
+```
+
+Each instance gets its own config with its own `projectId`.
+
+### Projects API
+
+Manage projects programmatically using an Account API Key (`ASA_` prefix). These methods call the AutoSend Projects API and require admin-level access.
+
+```ts
+// List all projects in your organization
+const { projects } = await autosend.listProjects(ctx);
+
+// Create a new project
+const { project } = await autosend.createProject(ctx, {
+  name: "Marketing Emails",
+  domain: "mail.example.com",     // optional
+  regionKey: "us-east-1",         // optional: us-east-1, us-east-2, ap-south-1
+});
+
+// Use the new project's ID for email sending
+await autosend.setConfig(ctx, {
+  config: {
+    projectId: project.id,
+  },
+});
+
+// Delete a project (irreversible — removes all associated resources)
+await autosend.deleteProject(ctx, {
+  projectId: "60d5ec49f1b2c72d9c8b1234",
+});
+```
+
+All three methods read the API key from config by default. You can also pass an `apiKey` override:
+
+```ts
+const { projects } = await autosend.listProjects(ctx, {
+  apiKey: "ASA_your_account_key",
+});
+```
+
+Project-scoped API keys (`AS_` prefix) cannot call these endpoints — only Account API Keys (`ASA_` prefix) are accepted.
 
 ### `getConfig` return value
 

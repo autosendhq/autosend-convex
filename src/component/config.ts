@@ -36,6 +36,7 @@ export type Globals = {
   cleanupDeliveriesMs?: number;
   providerCompatibilityMode?: "strict" | "lenient";
   autosendBaseUrl?: string;
+  projectId?: string;
 };
 
 export type ResolvedGlobals = {
@@ -55,6 +56,7 @@ export type ResolvedGlobals = {
   cleanupDeliveriesMs: number;
   providerCompatibilityMode: "strict" | "lenient";
   autosendBaseUrl: string;
+  projectId?: string;
 };
 
 function sanitizeStringList(values: string[] | undefined): string[] {
@@ -95,6 +97,7 @@ function withDefaults(globals: Globals): ResolvedGlobals {
     ),
     providerCompatibilityMode: globals.providerCompatibilityMode ?? "strict",
     autosendBaseUrl: globals.autosendBaseUrl ?? DEFAULT_AUTOSEND_BASE_URL,
+    projectId: globals.projectId,
   };
 }
 
@@ -123,6 +126,7 @@ async function readGlobals(db: DatabaseReader): Promise<Globals> {
     cleanupDeliveriesMs: record.cleanupDeliveriesMs,
     providerCompatibilityMode: record.providerCompatibilityMode,
     autosendBaseUrl: record.autosendBaseUrl,
+    projectId: record.projectId,
   };
 }
 
@@ -150,6 +154,7 @@ export const getGlobalsInternal = internalQuery({
     cleanupDeliveriesMs: v.number(),
     providerCompatibilityMode: providerCompatibilityModeValidator,
     autosendBaseUrl: v.string(),
+    projectId: v.optional(v.string()),
   }),
   handler: async (ctx) => {
     return await loadGlobals(ctx);
@@ -201,6 +206,7 @@ export const setConfig = mutation({
         cleanupDeliveriesMs: normalized.cleanupDeliveriesMs,
         providerCompatibilityMode: normalized.providerCompatibilityMode,
         autosendBaseUrl: normalized.autosendBaseUrl,
+        projectId: normalized.projectId,
       });
       return { created: false };
     }
@@ -237,6 +243,8 @@ export const setConfig = mutation({
     }
     if (normalized.autosendBaseUrl !== undefined)
       patch.autosendBaseUrl = normalized.autosendBaseUrl;
+    if (normalized.projectId !== undefined)
+      patch.projectId = normalized.projectId;
 
     await ctx.db.patch(existing._id, patch as any);
     return { created: false };
@@ -263,6 +271,7 @@ export const getConfig = query({
       cleanupDeliveriesMs: globals.cleanupDeliveriesMs,
       providerCompatibilityMode: globals.providerCompatibilityMode,
       autosendBaseUrl: globals.autosendBaseUrl,
+      projectId: globals.projectId,
       hasApiKey: Boolean(globals.autosendApiKey),
       hasWebhookSecret: Boolean(globals.webhookSecret),
     };
