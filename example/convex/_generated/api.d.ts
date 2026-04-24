@@ -9,6 +9,7 @@
  */
 
 import type * as autosendDemo from "../autosendDemo.js";
+import type * as contacts from "../contacts.js";
 import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as envSetup from "../envSetup.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   autosendDemo: typeof autosendDemo;
+  contacts: typeof contacts;
   crons: typeof crons;
   email: typeof email;
   envSetup: typeof envSetup;
@@ -99,6 +101,7 @@ export declare const components: {
           hasApiKey: boolean;
           hasWebhookSecret: boolean;
           maxAttempts: number;
+          projectId?: string;
           providerCompatibilityMode: "strict" | "lenient";
           rateLimitRps: number;
           retryDelaysMs: Array<number>;
@@ -121,6 +124,7 @@ export declare const components: {
             defaultFrom?: string;
             defaultReplyTo?: string;
             maxAttempts?: number;
+            projectId?: string;
             providerCompatibilityMode?: "strict" | "lenient";
             rateLimitRps?: number;
             retryDelaysMs?: Array<number>;
@@ -132,6 +136,143 @@ export declare const components: {
           replace?: boolean;
         },
         { created: boolean }
+      >;
+    };
+    contacts: {
+      bulkUpdateContacts: FunctionReference<
+        "action",
+        "internal",
+        {
+          apiKey?: string;
+          contacts: Array<{
+            customFields?: any;
+            email: string;
+            firstName?: string;
+            lastName?: string;
+            userId?: string;
+          }>;
+          projectId?: string;
+          runWorkflow?: boolean;
+        },
+        { failedCount: number; successCount: number; totalCount: number }
+      >;
+      createContact: FunctionReference<
+        "action",
+        "internal",
+        {
+          apiKey?: string;
+          customFields?: any;
+          email: string;
+          firstName?: string;
+          lastName?: string;
+          listIds?: Array<string>;
+          projectId?: string;
+          userId?: string;
+        },
+        {
+          contact: {
+            createdAt: string;
+            customFields: any;
+            email: string;
+            firstName: string | null;
+            id: string;
+            lastName: string | null;
+            listIds?: Array<string>;
+            projectId?: string;
+            updatedAt: string;
+            userId: string | null;
+          };
+        }
+      >;
+      deleteContact: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; contactId: string; projectId?: string },
+        { message: string; success: boolean }
+      >;
+      deleteContactByUserId: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; projectId?: string; userId: string },
+        { message: string; success: boolean }
+      >;
+      getContact: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; contactId: string; projectId?: string },
+        {
+          contact: {
+            createdAt: string;
+            customFields: any;
+            email: string;
+            firstName: string | null;
+            id: string;
+            lastName: string | null;
+            listIds?: Array<string>;
+            projectId?: string;
+            updatedAt: string;
+            userId: string | null;
+          };
+        }
+      >;
+      getUnsubscribeGroups: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; contactId: string; projectId?: string },
+        { groups: Array<{ groupId: string; name: string }> }
+      >;
+      removeContactsByEmails: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; emails: Array<string>; projectId?: string },
+        { message: string; success: boolean }
+      >;
+      searchContactsByEmails: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; emails: Array<string>; projectId?: string },
+        {
+          contacts: Array<{
+            createdAt: string;
+            customFields: any;
+            email: string;
+            firstName: string | null;
+            id: string;
+            lastName: string | null;
+            listIds?: Array<string>;
+            projectId?: string;
+            updatedAt: string;
+            userId: string | null;
+          }>;
+        }
+      >;
+      upsertContact: FunctionReference<
+        "action",
+        "internal",
+        {
+          apiKey?: string;
+          customFields?: any;
+          email: string;
+          firstName?: string;
+          lastName?: string;
+          listIds?: Array<string>;
+          projectId?: string;
+          userId?: string;
+        },
+        {
+          contact: {
+            createdAt: string;
+            customFields: any;
+            email: string;
+            firstName: string | null;
+            id: string;
+            lastName: string | null;
+            listIds?: Array<string>;
+            projectId?: string;
+            updatedAt: string;
+            userId: string | null;
+          };
+        }
       >;
     };
     emails: {
@@ -202,6 +343,60 @@ export declare const components: {
           unsubscribeGroupId?: string;
         },
         { deduped: boolean; emailId: string }
+      >;
+    };
+    projects: {
+      createProject: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; domain?: string; name: string; regionKey?: string },
+        {
+          project: {
+            address: any;
+            domain: string | null;
+            domains: Array<{
+              domain: string;
+              id: string;
+              verificationStatus: string;
+            }>;
+            id: string;
+            industry: string | null;
+            logo: string | null;
+            name: string;
+            regionKey: string | null;
+            trackingClick: boolean;
+            trackingOpen: boolean;
+          };
+        }
+      >;
+      deleteProject: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; projectId: string },
+        { message: string; success: boolean }
+      >;
+      listProjects: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string },
+        {
+          projects: Array<{
+            address: any;
+            domain: string | null;
+            domains: Array<{
+              domain: string;
+              id: string;
+              verificationStatus: string;
+            }>;
+            id: string;
+            industry: string | null;
+            logo: string | null;
+            name: string;
+            regionKey: string | null;
+            trackingClick: boolean;
+            trackingOpen: boolean;
+          }>;
+        }
       >;
     };
     queries: {

@@ -296,6 +296,29 @@ export const deleteInbox = mutation({
   },
 });
 
+export const deleteInboxInternal = internalMutation({
+  args: {
+    inboxId: v.id("mailtmInboxes"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const inbox = await ctx.db.get(args.inboxId);
+    if (!inbox) return null;
+
+    const messages = await ctx.db
+      .query("mailtmMessages")
+      .withIndex("by_inboxId_receivedAt", (q) => q.eq("inboxId", args.inboxId))
+      .collect();
+
+    for (const message of messages) {
+      await ctx.db.delete(message._id);
+    }
+
+    await ctx.db.delete(inbox._id);
+    return null;
+  },
+});
+
 const MAX_INBOXES = 5;
 
 export const createInbox = action({
@@ -307,10 +330,12 @@ export const createInbox = action({
     address: string;
     accountId: string;
   }> => {
-    // Cap the number of active inboxes to prevent resource exhaustion.
+    // Auto-delete oldest inbox(es) to stay within the limit.
     const existingIds = await ctx.runQuery(internal.mailtm.listInboxIdsInternal, {});
-    if (existingIds.length >= MAX_INBOXES) {
-      throw new Error(`Demo is limited to ${MAX_INBOXES} inboxes. Delete one to create another.`);
+    for (let i = 0; i <= existingIds.length - MAX_INBOXES; i++) {
+      await ctx.runMutation(internal.mailtm.deleteInboxInternal, {
+        inboxId: existingIds[i]!,
+      });
     }
 
     const domainsResult = await apiJson<unknown>(
