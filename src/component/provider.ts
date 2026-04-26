@@ -1,6 +1,7 @@
 import type {
   Attachment,
   Contact,
+  ContactList,
   EmailRecipient,
   Project,
   ProviderCompatibilityMode,
@@ -185,6 +186,27 @@ export async function normalizeError(
   }
 
   return `AutoSend ${response.status}: request failed`;
+}
+
+export function resolveOptions(
+  globals: {
+    autosendApiKey?: string;
+    autosendBaseUrl: string;
+    providerCompatibilityMode: "strict" | "lenient";
+    projectId?: string;
+  },
+  args: { apiKey?: string; projectId?: string },
+): ProviderOptions {
+  const apiKey = args.apiKey ?? globals.autosendApiKey;
+  if (!apiKey) {
+    throw new Error("API key not configured. Set autosendApiKey via setConfig().");
+  }
+  return {
+    apiKey,
+    baseUrl: globals.autosendBaseUrl,
+    compatibilityMode: globals.providerCompatibilityMode,
+    projectId: args.projectId ?? globals.projectId,
+  };
 }
 
 const PROVIDER_TIMEOUT_MS = 30_000;
@@ -747,7 +769,7 @@ export async function upsertContact(
 export async function deleteContact(
   contactId: string,
   options: ProviderOptions,
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message?: string }> {
   validateProjectConfig(options);
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const endpoint = `${baseUrl}/v1/contacts/${encodeURIComponent(contactId)}`;
@@ -782,14 +804,14 @@ export async function deleteContact(
   const data = parsedBody as Record<string, unknown> | undefined;
   return {
     success: Boolean(data?.success),
-    message: typeof data?.message === "string" ? data.message : "Contact deleted successfully",
+    message: typeof data?.message === "string" ? data.message : undefined,
   };
 }
 
 export async function deleteContactByUserId(
   userId: string,
   options: ProviderOptions,
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message?: string }> {
   validateProjectConfig(options);
   if (!userId || userId.trim().length === 0) {
     throw new Error("userId is required for deleteContactByUserId.");
@@ -827,14 +849,14 @@ export async function deleteContactByUserId(
   const data = parsedBody as Record<string, unknown> | undefined;
   return {
     success: Boolean(data?.success),
-    message: typeof data?.message === "string" ? data.message : "Contact deleted successfully",
+    message: typeof data?.message === "string" ? data.message : undefined,
   };
 }
 
 export async function removeContactsByEmails(
   emails: string[],
   options: ProviderOptions,
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message?: string }> {
   if (emails.length === 0) {
     throw new Error("At least one email is required for removeContactsByEmails.");
   }
@@ -876,7 +898,7 @@ export async function removeContactsByEmails(
   const data = parsedBody as Record<string, unknown> | undefined;
   return {
     success: Boolean(data?.success),
-    message: typeof data?.message === "string" ? data.message : "Contacts removed successfully",
+    message: typeof data?.message === "string" ? data.message : undefined,
   };
 }
 
@@ -1176,4 +1198,424 @@ export async function ensureCustomFields(
       }
     }),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Contact Lists API
+// ---------------------------------------------------------------------------
+
+function parseContactList(data: unknown): ContactList {
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid contact list data in API response");
+  }
+  const obj = data as Record<string, unknown>;
+  const id = typeof obj.id === "string" && obj.id.length > 0 ? obj.id : null;
+  const name = typeof obj.name === "string" && obj.name.length > 0 ? obj.name : null;
+  if (!id) {
+    throw new Error("Contact list response missing required 'id' field");
+  }
+  if (!name) {
+    throw new Error("Contact list response missing required 'name' field");
+  }
+  const rawType = typeof obj.type === "string" ? obj.type : "list";
+  const type = rawType === "segment" ? ("segment" as const) : ("list" as const);
+  return {
+    id,
+    name,
+    description: typeof obj.description === "string" ? obj.description : null,
+    type,
+    contactCount: typeof obj.contactCount === "number" ? obj.contactCount : undefined,
+    createdAt: typeof obj.createdAt === "string" ? obj.createdAt : "",
+    updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : "",
+  };
+}
+
+export async function listContactLists(
+  args: { type?: "list" | "segment" },
+  options: ProviderOptions,
+): Promise<ContactList[]> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const params = args.type ? `?type=${encodeURIComponent(args.type)}` : "";
+  const endpoint = `${baseUrl}/v1/contact-lists${params}`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "GET",
+        headers: buildHeaders(options),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  const lists = (data?.data as Record<string, unknown> | undefined)?.lists;
+  if (!Array.isArray(lists)) {
+    throw new Error("AutoSend list contact-lists response missing lists array");
+  }
+
+  return lists.map(parseContactList);
+}
+
+export async function getContactList(
+  listId: string,
+  options: ProviderOptions,
+): Promise<ContactList> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contact-lists/${encodeURIComponent(listId)}`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "GET",
+        headers: buildHeaders(options),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data;
+  return parseContactList(data);
+}
+
+export async function createContactList(
+  args: { name: string; description?: string },
+  options: ProviderOptions,
+): Promise<ContactList> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contact-lists`;
+
+  const body: Record<string, string> = { name: args.name };
+  if (args.description !== undefined) body.description = args.description;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data;
+  return parseContactList(data);
+}
+
+export async function deleteContactList(
+  listId: string,
+  options: ProviderOptions,
+): Promise<{ success: boolean; message: string }> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contact-lists/${encodeURIComponent(listId)}`;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: buildHeaders(options),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  return {
+    success: Boolean(data?.success),
+    message: typeof data?.message === "string" ? data.message : "Contact list deleted successfully",
+  };
+}
+
+export async function getContactListContacts(
+  listId: string,
+  args: { page?: number; limit?: number; email?: string },
+  options: ProviderOptions,
+): Promise<{ contacts: Contact[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contact-lists/contacts/search`;
+
+  const body: Record<string, unknown> = { contactListId: listId };
+  if (args.page !== undefined) body.page = args.page;
+  if (args.limit !== undefined) body.limit = args.limit;
+  if (args.email !== undefined) body.email = args.email;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = parsedBody as Record<string, unknown> | undefined;
+  const inner = data?.data as Record<string, unknown> | undefined;
+  const contacts = inner?.contacts;
+  if (!Array.isArray(contacts)) {
+    throw new Error("AutoSend get contact list contacts response missing contacts array");
+  }
+
+  const pag = inner?.pagination as Record<string, unknown> | undefined;
+
+  return {
+    contacts: contacts.map(parseContact),
+    pagination: {
+      page: typeof pag?.page === "number" ? pag.page : 1,
+      limit: typeof pag?.limit === "number" ? pag.limit : 20,
+      total: typeof pag?.total === "number" ? pag.total : contacts.length,
+      pages: typeof pag?.pages === "number" ? pag.pages : 1,
+    },
+  };
+}
+
+export async function bulkAddContactsToList(
+  listId: string,
+  args: { contactIds?: string[]; emails?: string[] },
+  options: ProviderOptions,
+): Promise<{ success: boolean; added: number; created: number; alreadyInList: number; totalContactsInList: number; errors: Array<{ email: string; error: string }> }> {
+  if ((!args.contactIds || args.contactIds.length === 0) && (!args.emails || args.emails.length === 0)) {
+    throw new Error("At least one contactId or email is required for bulk add.");
+  }
+  const BULK_ADD_MAX = 500;
+  if (args.contactIds && args.contactIds.length > BULK_ADD_MAX) {
+    throw new Error(
+      `Bulk add supports a maximum of ${BULK_ADD_MAX} contactIds per call (got ${args.contactIds.length}).`,
+    );
+  }
+  if (args.emails && args.emails.length > BULK_ADD_MAX) {
+    throw new Error(
+      `Bulk add supports a maximum of ${BULK_ADD_MAX} emails per call (got ${args.emails.length}).`,
+    );
+  }
+  if (args.emails) {
+    for (const email of args.emails) {
+      validateEmail(email);
+    }
+  }
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contact-lists/contacts/bulk-add`;
+
+  const body: Record<string, unknown> = { contactListId: listId };
+  if (args.contactIds && args.contactIds.length > 0) body.contactIds = args.contactIds;
+  if (args.emails && args.emails.length > 0) body.emails = args.emails;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data as
+    | Record<string, unknown>
+    | undefined;
+  const errors: Array<{ email: string; error: string }> = [];
+  if (Array.isArray(data?.errors)) {
+    for (const e of data.errors as unknown[]) {
+      if (e && typeof e === "object") {
+        const item = e as Record<string, unknown>;
+        errors.push({
+          email: typeof item.email === "string" ? item.email : "",
+          error: typeof item.error === "string" ? item.error : "Unknown error",
+        });
+      }
+    }
+  }
+
+  return {
+    success: Boolean((parsedBody as Record<string, unknown>)?.success),
+    added: typeof data?.added === "number" ? data.added : 0,
+    created: typeof data?.created === "number" ? data.created : 0,
+    alreadyInList: typeof data?.alreadyInList === "number" ? data.alreadyInList : 0,
+    totalContactsInList: typeof data?.totalContactsInList === "number" ? data.totalContactsInList : 0,
+    errors,
+  };
+}
+
+export async function removeContactsFromList(
+  listId: string,
+  args: { contactIds?: string[]; emails?: string[] },
+  options: ProviderOptions,
+): Promise<{ success: boolean; removed: number; notInList: number; errors: Array<{ email: string; error: string }> }> {
+  if ((!args.contactIds || args.contactIds.length === 0) && (!args.emails || args.emails.length === 0)) {
+    throw new Error("At least one contactId or email is required for remove-contacts.");
+  }
+  if (args.emails) {
+    for (const email of args.emails) {
+      validateEmail(email);
+    }
+  }
+  validateProjectConfig(options);
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const endpoint = `${baseUrl}/v1/contact-lists/${encodeURIComponent(listId)}/contacts/remove`;
+
+  const body: Record<string, unknown> = {};
+  if (args.contactIds && args.contactIds.length > 0) body.contactIds = args.contactIds;
+  if (args.emails && args.emails.length > 0) body.emails = args.emails;
+
+  let response: Response;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildHeaders(options),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    const isTimeout = error instanceof DOMException && error.name === "AbortError";
+    throw new Error(
+      isTimeout
+        ? `AutoSend request timed out after ${PROVIDER_TIMEOUT_MS}ms`
+        : `AutoSend request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const parsedBody = await safeParseJson(response);
+  if (!response.ok) {
+    throw new Error(await normalizeError(response, parsedBody));
+  }
+
+  const data = (parsedBody as Record<string, unknown> | undefined)?.data as
+    | Record<string, unknown>
+    | undefined;
+  const errors: Array<{ email: string; error: string }> = [];
+  if (Array.isArray(data?.errors)) {
+    for (const e of data.errors as unknown[]) {
+      if (e && typeof e === "object") {
+        const item = e as Record<string, unknown>;
+        errors.push({
+          email: typeof item.email === "string" ? item.email : "",
+          error: typeof item.error === "string" ? item.error : "Unknown error",
+        });
+      }
+    }
+  }
+
+  return {
+    success: Boolean((parsedBody as Record<string, unknown>)?.success),
+    removed: typeof data?.removed === "number" ? data.removed : 0,
+    notInList: typeof data?.notInList === "number" ? data.notInList : 0,
+    errors,
+  };
 }

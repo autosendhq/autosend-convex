@@ -10,8 +10,8 @@ import {
   searchContactsByEmails as providerSearchContactsByEmails,
   getContactUnsubscribeGroups as providerGetContactUnsubscribeGroups,
   bulkUpdateContacts as providerBulkUpdateContacts,
+  resolveOptions,
 } from "./provider";
-import type { ProviderOptions } from "./provider";
 import {
   createContactArgsValidator,
   createContactResultValidator,
@@ -41,27 +41,6 @@ import {
   type GetUnsubscribeGroupsResult,
   type BulkUpdateContactsResult,
 } from "./types";
-
-function resolveOptions(
-  globals: {
-    autosendApiKey?: string;
-    autosendBaseUrl: string;
-    providerCompatibilityMode: "strict" | "lenient";
-    projectId?: string;
-  },
-  args: { apiKey?: string; projectId?: string },
-): ProviderOptions {
-  const apiKey = args.apiKey ?? globals.autosendApiKey;
-  if (!apiKey) {
-    throw new Error("API key not configured. Set autosendApiKey via setConfig().");
-  }
-  return {
-    apiKey,
-    baseUrl: globals.autosendBaseUrl,
-    compatibilityMode: globals.providerCompatibilityMode,
-    projectId: args.projectId ?? globals.projectId,
-  };
-}
 
 export const createContact = action({
   args: createContactArgsValidator,

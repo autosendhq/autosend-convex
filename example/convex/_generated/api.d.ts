@@ -9,6 +9,7 @@
  */
 
 import type * as autosendDemo from "../autosendDemo.js";
+import type * as contactLists from "../contactLists.js";
 import type * as contacts from "../contacts.js";
 import type * as crons from "../crons.js";
 import type * as email from "../email.js";
@@ -24,6 +25,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   autosendDemo: typeof autosendDemo;
+  contactLists: typeof contactLists;
   contacts: typeof contacts;
   crons: typeof crons;
   email: typeof email;
@@ -136,6 +138,129 @@ export declare const components: {
           replace?: boolean;
         },
         { created: boolean }
+      >;
+    };
+    contactLists: {
+      addContactsToList: FunctionReference<
+        "action",
+        "internal",
+        {
+          apiKey?: string;
+          contactIds?: Array<string>;
+          emails?: Array<string>;
+          listId: string;
+          projectId?: string;
+        },
+        {
+          added: number;
+          alreadyInList: number;
+          created: number;
+          success: boolean;
+          totalContactsInList: number;
+        }
+      >;
+      createContactList: FunctionReference<
+        "action",
+        "internal",
+        {
+          apiKey?: string;
+          description?: string;
+          name: string;
+          projectId?: string;
+        },
+        {
+          contactList: {
+            contactCount?: number;
+            createdAt: string;
+            description: string | null;
+            id: string;
+            name: string;
+            type: "list" | "segment";
+            updatedAt: string;
+          };
+        }
+      >;
+      deleteContactList: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; listId: string; projectId?: string },
+        { message: string; success: boolean }
+      >;
+      getContactList: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; listId: string; projectId?: string },
+        {
+          contactList: {
+            contactCount?: number;
+            createdAt: string;
+            description: string | null;
+            id: string;
+            name: string;
+            type: "list" | "segment";
+            updatedAt: string;
+          };
+        }
+      >;
+      getContactListContacts: FunctionReference<
+        "action",
+        "internal",
+        {
+          apiKey?: string;
+          email?: string;
+          limit?: number;
+          listId: string;
+          page?: number;
+          projectId?: string;
+        },
+        {
+          contacts: Array<{
+            createdAt: string;
+            customFields: any;
+            email: string;
+            firstName: string | null;
+            id: string;
+            lastName: string | null;
+            listIds?: Array<string>;
+            projectId?: string;
+            updatedAt: string;
+            userId: string | null;
+          }>;
+          pagination: {
+            limit: number;
+            page: number;
+            pages: number;
+            total: number;
+          };
+        }
+      >;
+      listContactLists: FunctionReference<
+        "action",
+        "internal",
+        { apiKey?: string; projectId?: string; type?: "list" | "segment" },
+        {
+          contactLists: Array<{
+            contactCount?: number;
+            createdAt: string;
+            description: string | null;
+            id: string;
+            name: string;
+            type: "list" | "segment";
+            updatedAt: string;
+          }>;
+        }
+      >;
+      removeContactsFromList: FunctionReference<
+        "action",
+        "internal",
+        {
+          apiKey?: string;
+          contactIds?: Array<string>;
+          emails?: Array<string>;
+          listId: string;
+          projectId?: string;
+        },
+        { notInList: number; removed: number; success: boolean }
       >;
     };
     contacts: {

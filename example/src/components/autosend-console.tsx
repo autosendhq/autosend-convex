@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { Send, Inbox, Settings2, Activity, Mail, Users } from "lucide-react";
+import { Send, Inbox, Settings2, Activity, Mail, Users, LayoutList } from "lucide-react";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -26,6 +26,7 @@ import { InboxView, useMailTmLiveSync } from "./autosend-console/inbox-view";
 import { OpsView } from "./autosend-console/ops-view";
 import { SetupView } from "./autosend-console/setup-view";
 import { ContactsView } from "./autosend-console/contacts-view";
+import { ListsView } from "./autosend-console/lists-view";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,7 +64,7 @@ function friendlyError(err: unknown, fallback: string): string {
 // Types
 // ---------------------------------------------------------------------------
 
-type View = "send" | "inbox" | "contacts" | "ops" | "setup";
+type View = "send" | "inbox" | "contacts" | "lists" | "ops" | "setup";
 
 const DEMO_DEFAULT_FROM = "ray@con.taskos.dev";
 const DEMO_DEFAULT_REPLY_TO = "ray@con.taskos.dev";
@@ -112,6 +113,13 @@ export default function AutoSendConsole() {
   const searchContactsAction = useAction(api.contacts.searchContacts);
   const bulkUpdateContactsAction = useAction(api.contacts.bulkUpdateContacts);
   const getUnsubscribeGroupsAction = useAction(api.contacts.getUnsubscribeGroups);
+  const listContactListsAction = useAction(api.contactLists.listContactLists);
+  const getContactListAction = useAction(api.contactLists.getContactList);
+  const createContactListAction = useAction(api.contactLists.createContactList);
+  const deleteContactListAction = useAction(api.contactLists.deleteContactList);
+  const getContactListContactsAction = useAction(api.contactLists.getContactListContacts);
+  const addContactsToListAction = useAction(api.contactLists.addContactsToList);
+  const removeContactsFromListAction = useAction(api.contactLists.removeContactsFromList);
 
   // Form state — setup
   const [sandboxTo, setSandboxTo] = useState("");
@@ -159,6 +167,7 @@ export default function AutoSendConsole() {
   const [cleanupAbandonedResult, setCleanupAbandonedResult] = useState<any>(null);
   const [cleanupDeliveryResult, setCleanupDeliveryResult] = useState<any>(null);
   const [contactsLoading, setContactsLoading] = useState(false);
+  const [listsLoading, setListsLoading] = useState(false);
 
   // Confirm dialog
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -754,6 +763,129 @@ export default function AutoSendConsole() {
   }, [inboxes]);
 
   // ---------------------------------------------------------------------------
+  // Lists handlers (wrap actions with toast + loading)
+  // ---------------------------------------------------------------------------
+
+  const onListContactLists = useCallback(
+    async (args: { type?: "list" | "segment" }) => {
+      setListsLoading(true);
+      try {
+        const result = await listContactListsAction(args);
+        toast.success(`Found ${result.contactLists.length} list(s)`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to fetch lists"));
+        throw err;
+      } finally {
+        setListsLoading(false);
+      }
+    },
+    [listContactListsAction],
+  );
+
+  const onGetContactList = useCallback(
+    async (args: { listId: string }) => {
+      setListsLoading(true);
+      try {
+        const result = await getContactListAction(args);
+        toast.success(`Found list "${result.contactList.name}"`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to get list"));
+        throw err;
+      } finally {
+        setListsLoading(false);
+      }
+    },
+    [getContactListAction],
+  );
+
+  const onCreateContactList = useCallback(
+    async (args: { name: string; description?: string }) => {
+      setListsLoading(true);
+      try {
+        const result = await createContactListAction(args);
+        toast.success(`Created list "${result.contactList.name}"`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to create list"));
+        throw err;
+      } finally {
+        setListsLoading(false);
+      }
+    },
+    [createContactListAction],
+  );
+
+  const onDeleteContactList = useCallback(
+    async (args: { listId: string }) => {
+      setListsLoading(true);
+      try {
+        const result = await deleteContactListAction(args);
+        toast.success(result.message);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to delete list"));
+        throw err;
+      } finally {
+        setListsLoading(false);
+      }
+    },
+    [deleteContactListAction],
+  );
+
+  const onGetContactListContacts = useCallback(
+    async (args: { listId: string; page?: number; limit?: number; email?: string }) => {
+      setListsLoading(true);
+      try {
+        const result = await getContactListContactsAction(args);
+        toast.success(`Found ${result.contacts.length} contact(s) in list`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to get list contacts"));
+        throw err;
+      } finally {
+        setListsLoading(false);
+      }
+    },
+    [getContactListContactsAction],
+  );
+
+  const onAddContactsToList = useCallback(
+    async (args: { listId: string; contactIds?: string[]; emails?: string[] }) => {
+      setListsLoading(true);
+      try {
+        const result = await addContactsToListAction(args);
+        toast.success(`Added ${result.added} contact(s), ${result.created} new, ${result.alreadyInList} already in list`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to add contacts to list"));
+        throw err;
+      } finally {
+        setListsLoading(false);
+      }
+    },
+    [addContactsToListAction],
+  );
+
+  const onRemoveContactsFromList = useCallback(
+    async (args: { listId: string; contactIds?: string[]; emails?: string[] }) => {
+      setListsLoading(true);
+      try {
+        const result = await removeContactsFromListAction(args);
+        toast.success(`Removed ${result.removed} contact(s), ${result.notInList} not in list`);
+        return result;
+      } catch (err) {
+        toast.error(friendlyError(err, "Failed to remove contacts from list"));
+        throw err;
+      } finally {
+        setListsLoading(false);
+      }
+    },
+    [removeContactsFromListAction],
+  );
+
+  // ---------------------------------------------------------------------------
   // Nav items
   // ---------------------------------------------------------------------------
 
@@ -761,6 +893,7 @@ export default function AutoSendConsole() {
     { key: "send", label: "Send & Monitor", icon: <Send className="size-4" /> },
     { key: "inbox", label: "Test Inbox", icon: <Inbox className="size-4" /> },
     { key: "contacts", label: "Contacts", icon: <Users className="size-4" /> },
+    { key: "lists", label: "Lists", icon: <LayoutList className="size-4" /> },
     { key: "ops", label: "Operations", icon: <Activity className="size-4" /> },
     { key: "setup", label: "Configuration", icon: <Settings2 className="size-4" /> },
   ];
@@ -939,6 +1072,18 @@ export default function AutoSendConsole() {
             tempMailDomains={tempMailDomains}
             existingInboxAddresses={existingInboxAddresses}
             loading={contactsLoading}
+          />
+        )}
+        {view === "lists" && (
+          <ListsView
+            onListContactLists={onListContactLists}
+            onGetContactList={onGetContactList}
+            onCreateContactList={onCreateContactList}
+            onDeleteContactList={onDeleteContactList}
+            onGetContactListContacts={onGetContactListContacts}
+            onAddContactsToList={onAddContactsToList}
+            onRemoveContactsFromList={onRemoveContactsFromList}
+            loading={listsLoading}
           />
         )}
         {view === "ops" && (

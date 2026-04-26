@@ -9,7 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@base-ui-components/react": "1.0.0-rc.0",
+    "@base-ui/react": "^1.4.1",
     "@mzedstudio/autosend": "file:..",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
