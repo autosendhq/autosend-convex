@@ -51,6 +51,9 @@ coverage
 # Claude Code
 .claude/
 
+# Internal docs
+FEATURE_GAP_ANALYSIS.md
+
 # Misc
 *.tgz
 .cache

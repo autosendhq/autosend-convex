@@ -26,6 +26,8 @@ A [Convex component](https://docs.convex.dev/components) for transactional email
 - Test sandbox mode: optional recipient rewriting via `sandboxTo`.
 - Maintenance actions: cleanup for old terminal emails, abandoned sending jobs, and stale webhook delivery records. Supports dry-run preview before executing.
 - Project management: create, list, and delete projects programmatically via Account API Keys (`ASA_` prefix).
+- Contacts management: create, get, upsert, delete, search, and bulk update contacts via provider API.
+- Contact lists: create, list, delete lists; add/remove contacts by ID or email; view list membership.
 
 ## Installation
 
@@ -236,6 +238,22 @@ await autosend.cleanupOldDeliveries(ctx, { olderThanMs: 7 * 24 * 60 * 60 * 1000 
 | `cleanupAbandonedEmails(ctx, args)` | action | `{ recoveredCount, failedCount, emailIds, hasMore }` | Recovers stale `sending` jobs. Supports `dryRun` |
 | `cleanupOldDeliveries(ctx, args)` | action | `{ deletedCount, hasMore }` | Removes old webhook delivery dedup records |
 | `handleCallback(ctx, args)` | action | `{ ok, eventType, emailId?, duplicate?, error? }` | Verifies and applies webhook callback |
+| `contacts.create(ctx, args)` | action | `{ contact }` | Create a new contact |
+| `contacts.get(ctx, args)` | action | `{ contact }` | Get contact by ID |
+| `contacts.upsert(ctx, args)` | action | `{ contact }` | Create or update contact by email |
+| `contacts.delete(ctx, args)` | action | `{ success, message? }` | Delete contact by ID |
+| `contacts.deleteByUserId(ctx, args)` | action | `{ success, message? }` | Delete contact by user ID |
+| `contacts.removeByEmails(ctx, args)` | action | `{ success, message? }` | Remove contacts by email addresses |
+| `contacts.search(ctx, args)` | action | `{ contacts }` | Search contacts by email addresses |
+| `contacts.getUnsubscribeGroups(ctx, args)` | action | `{ groups }` | Get unsubscribe groups for a contact |
+| `contacts.bulkUpdate(ctx, args)` | action | `{ successCount, failedCount, totalCount }` | Bulk update up to 500 contacts |
+| `lists.list(ctx, args?)` | action | `{ contactLists }` | List all contact lists |
+| `lists.get(ctx, args)` | action | `{ contactList }` | Get contact list by ID |
+| `lists.create(ctx, args)` | action | `{ contactList }` | Create a new contact list |
+| `lists.delete(ctx, args)` | action | `{ success, message }` | Delete a contact list |
+| `lists.getContacts(ctx, args)` | action | `{ contacts, pagination }` | Get paginated contacts in a list |
+| `lists.addContacts(ctx, args)` | action | `{ success, added, created, ... }` | Add contacts to a list |
+| `lists.removeContacts(ctx, args)` | action | `{ success, removed, ... }` | Remove contacts from a list |
 
 ### `sendEmail` arguments
 
@@ -393,6 +411,115 @@ const { projects } = await autosend.listProjects(ctx, {
 
 Project-scoped API keys (`AS_` prefix) cannot call these endpoints — only Account API Keys (`ASA_` prefix) are accepted.
 
+### Contacts API
+
+Manage contacts in your AutoSend project. All methods are available under `autosend.contacts`.
+
+```ts
+// Create a contact
+const { contact } = await autosend.contacts.create(ctx, {
+  email: "jane@example.com",
+  firstName: "Jane",
+  lastName: "Doe",
+  listIds: ["list_abc123"],        // optional: add to lists on creation
+  customFields: { plan: "pro" },   // optional
+});
+
+// Get a contact by ID
+const { contact } = await autosend.contacts.get(ctx, {
+  contactId: "ct_abc123",
+});
+
+// Upsert — create or update by email
+const { contact } = await autosend.contacts.upsert(ctx, {
+  email: "jane@example.com",
+  firstName: "Jane",
+  lastName: "Doe",
+});
+
+// Search contacts by email addresses
+const { contacts } = await autosend.contacts.search(ctx, {
+  emails: ["jane@example.com", "bob@example.com"],
+});
+
+// Bulk update contacts (up to 500)
+const result = await autosend.contacts.bulkUpdate(ctx, {
+  contacts: [
+    { email: "jane@example.com", firstName: "Jane" },
+    { email: "bob@example.com", firstName: "Bob" },
+  ],
+  runWorkflow: true, // optional: trigger automations
+});
+
+// Delete a contact
+await autosend.contacts.delete(ctx, { contactId: "ct_abc123" });
+
+// Delete by user ID
+await autosend.contacts.deleteByUserId(ctx, { userId: "user_123" });
+
+// Remove contacts by email addresses
+await autosend.contacts.removeByEmails(ctx, {
+  emails: ["jane@example.com"],
+});
+
+// Get unsubscribe groups for a contact
+const { groups } = await autosend.contacts.getUnsubscribeGroups(ctx, {
+  contactId: "ct_abc123",
+});
+```
+
+All contacts methods accept optional `apiKey` and `projectId` overrides.
+
+### Contact Lists API
+
+Manage contact lists and their membership. All methods are available under `autosend.lists`.
+
+```ts
+// Create a list
+const { contactList } = await autosend.lists.create(ctx, {
+  name: "Newsletter Subscribers",
+  description: "Monthly newsletter recipients",
+});
+
+// List all lists (optionally filter by type)
+const { contactLists } = await autosend.lists.list(ctx, { type: "list" });
+
+// Get a list by ID
+const { contactList } = await autosend.lists.get(ctx, {
+  listId: "cl_abc123",
+});
+
+// View contacts in a list (paginated)
+const { contacts, pagination } = await autosend.lists.getContacts(ctx, {
+  listId: "cl_abc123",
+  page: 1,
+  limit: 50,
+  email: "jane@",  // optional: filter by email
+});
+
+// Add contacts to a list (by email or contact ID)
+const result = await autosend.lists.addContacts(ctx, {
+  listId: "cl_abc123",
+  emails: ["jane@example.com", "bob@example.com"],
+});
+// Or by contact IDs:
+await autosend.lists.addContacts(ctx, {
+  listId: "cl_abc123",
+  contactIds: ["ct_abc123", "ct_def456"],
+});
+
+// Remove contacts from a list
+await autosend.lists.removeContacts(ctx, {
+  listId: "cl_abc123",
+  emails: ["jane@example.com"],
+});
+
+// Delete a list (contacts are not deleted)
+await autosend.lists.delete(ctx, { listId: "cl_abc123" });
+```
+
+All list methods accept optional `apiKey` and `projectId` overrides.
+
 ### `getConfig` return value
 
 `getConfig` returns a `SafeConfig` object containing all non-secret configuration values plus two booleans indicating whether secrets are set:
@@ -451,6 +578,25 @@ If you do not use the `AutoSend` wrapper, the component exposes:
 - `cleanup.cleanupAbandonedEmails`
 - `cleanup.cleanupOldDeliveries`
 - `webhooks.handleCallback`
+- `projects.listProjects`
+- `projects.createProject`
+- `projects.deleteProject`
+- `contacts.createContact`
+- `contacts.getContact`
+- `contacts.upsertContact`
+- `contacts.deleteContact`
+- `contacts.deleteContactByUserId`
+- `contacts.removeContactsByEmails`
+- `contacts.searchContactsByEmails`
+- `contacts.getUnsubscribeGroups`
+- `contacts.bulkUpdateContacts`
+- `contactLists.listContactLists`
+- `contactLists.getContactList`
+- `contactLists.createContactList`
+- `contactLists.deleteContactList`
+- `contactLists.getContactListContacts`
+- `contactLists.addContactsToList`
+- `contactLists.removeContactsFromList`
 
 ## Exported Types and Validators
 
@@ -458,6 +604,7 @@ The package exports TypeScript types and Convex validators for use in your own f
 
 ```ts
 import type {
+  // Email
   EmailStatus,           // "queued" | "retrying" | "sending" | "sent" | "failed" | "canceled"
   SendEmailArgs,         // Arguments for sendEmail
   SendBulkArgs,          // Arguments for sendBulk
@@ -467,10 +614,42 @@ import type {
   SafeConfig,            // Return type of getConfig
   DeliveryCleanupResult, // Return type of cleanupOldDeliveries
   ProviderCompatibilityMode, // "strict" | "lenient"
+  // Projects
+  Project,               // Project object shape
+  ProjectDomain,         // Project domain with verification status
+  CreateProjectResult,
+  ListProjectsResult,
+  DeleteProjectResult,
+  // Contacts
+  Contact,               // Contact object shape
+  CreateContactArgs,
+  CreateContactResult,
+  GetContactResult,
+  UpsertContactResult,
+  DeleteContactResult,
+  DeleteContactByUserIdResult,
+  RemoveContactsByEmailsResult,
+  SearchContactsResult,
+  GetUnsubscribeGroupsResult,
+  UnsubscribeGroup,
+  BulkUpdateContactsResult,
+  // Contact Lists
+  ContactList,           // Contact list object shape
+  ContactListType,       // "list" | "segment"
+  Pagination,            // { page, limit, total, pages }
+  ListContactListsResult,
+  GetContactListResult,
+  CreateContactListResult,
+  DeleteContactListResult,
+  GetContactListContactsResult,
+  AddContactsToListResult,
+  RemoveContactsFromListResult,
+  BulkAddError,
 } from "@mzedstudio/autosend";
 
 // Convex validators (for use in your own function args/returns)
 import {
+  // Email
   emailStatusValidator,
   sendEmailArgsValidator,
   sendBulkArgsValidator,
@@ -487,6 +666,53 @@ import {
   safeConfigValidator,
   webhookHandleResultValidator,
   providerCompatibilityModeValidator,
+  // Projects
+  projectValidator,
+  projectDomainValidator,
+  createProjectArgsValidator,
+  createProjectResultValidator,
+  listProjectsResultValidator,
+  deleteProjectResultValidator,
+  // Contacts
+  contactValidator,
+  createContactArgsValidator,
+  createContactResultValidator,
+  getContactArgsValidator,
+  getContactResultValidator,
+  upsertContactArgsValidator,
+  upsertContactResultValidator,
+  deleteContactArgsValidator,
+  deleteContactResultValidator,
+  deleteContactByUserIdArgsValidator,
+  deleteContactByUserIdResultValidator,
+  removeContactsByEmailsArgsValidator,
+  removeContactsByEmailsResultValidator,
+  searchContactsArgsValidator,
+  searchContactsResultValidator,
+  getUnsubscribeGroupsArgsValidator,
+  getUnsubscribeGroupsResultValidator,
+  unsubscribeGroupValidator,
+  bulkUpdateContactsArgsValidator,
+  bulkUpdateContactsResultValidator,
+  // Contact Lists
+  contactListValidator,
+  contactListTypeValidator,
+  paginationValidator,
+  listContactListsArgsValidator,
+  listContactListsResultValidator,
+  getContactListArgsValidator,
+  getContactListResultValidator,
+  createContactListArgsValidator,
+  createContactListResultValidator,
+  deleteContactListArgsValidator,
+  deleteContactListResultValidator,
+  getContactListContactsArgsValidator,
+  getContactListContactsResultValidator,
+  addContactsToListArgsValidator,
+  addContactsToListResultValidator,
+  removeContactsFromListArgsValidator,
+  removeContactsFromListResultValidator,
+  bulkAddErrorValidator,
 } from "@mzedstudio/autosend";
 ```
 
