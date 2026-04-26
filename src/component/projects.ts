@@ -5,6 +5,7 @@ import {
   listProjects as providerListProjects,
   createProject as providerCreateProject,
   deleteProject as providerDeleteProject,
+  resolveOptions,
 } from "./provider";
 import {
   createProjectArgsValidator,
@@ -23,14 +24,11 @@ export const listProjects = action({
   returns: listProjectsResultValidator,
   handler: async (ctx, args): Promise<ListProjectsResult> => {
     const globals = await ctx.runQuery(internal.config.getGlobalsInternal, {});
-    const apiKey = args.apiKey ?? globals.autosendApiKey;
-    if (!apiKey) {
-      throw new Error("API key not configured. Set autosendApiKey via setConfig().");
-    }
+    const options = resolveOptions(globals, args);
 
     const projects = await providerListProjects({
-      apiKey,
-      baseUrl: globals.autosendBaseUrl,
+      apiKey: options.apiKey,
+      baseUrl: options.baseUrl,
     });
 
     return { projects };
@@ -42,10 +40,7 @@ export const createProject = action({
   returns: createProjectResultValidator,
   handler: async (ctx, args): Promise<CreateProjectResult> => {
     const globals = await ctx.runQuery(internal.config.getGlobalsInternal, {});
-    const apiKey = args.apiKey ?? globals.autosendApiKey;
-    if (!apiKey) {
-      throw new Error("API key not configured. Set autosendApiKey via setConfig().");
-    }
+    const options = resolveOptions(globals, args);
 
     const project = await providerCreateProject(
       {
@@ -53,7 +48,7 @@ export const createProject = action({
         domain: args.domain,
         regionKey: args.regionKey,
       },
-      { apiKey, baseUrl: globals.autosendBaseUrl },
+      { apiKey: options.apiKey, baseUrl: options.baseUrl },
     );
 
     return { project };
@@ -68,14 +63,11 @@ export const deleteProject = action({
   returns: deleteProjectResultValidator,
   handler: async (ctx, args): Promise<DeleteProjectResult> => {
     const globals = await ctx.runQuery(internal.config.getGlobalsInternal, {});
-    const apiKey = args.apiKey ?? globals.autosendApiKey;
-    if (!apiKey) {
-      throw new Error("API key not configured. Set autosendApiKey via setConfig().");
-    }
+    const options = resolveOptions(globals, args);
 
     return await providerDeleteProject(args.projectId, {
-      apiKey,
-      baseUrl: globals.autosendBaseUrl,
+      apiKey: options.apiKey,
+      baseUrl: options.baseUrl,
     });
   },
 });
