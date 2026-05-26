@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
-    "@mzedstudio/autosend": "file:..",
+    "@autosend/convex": "file:..",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.31.7",

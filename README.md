@@ -1,7 +1,7 @@
 # AutoSend Convex Component
 
-[![npm version](https://img.shields.io/npm/v/@mzedstudio/autosend)](https://www.npmjs.com/package/@mzedstudio/autosend)
-[![npm downloads](https://img.shields.io/npm/dw/@mzedstudio/autosend)](https://www.npmjs.com/package/@mzedstudio/autosend)
+[![npm version](https://img.shields.io/npm/v/@autosend/convex)](https://www.npmjs.com/package/@autosend/convex)
+[![npm downloads](https://img.shields.io/npm/dw/@autosend/convex)](https://www.npmjs.com/package/@autosend/convex)
 
 A [Convex component](https://docs.convex.dev/components) for transactional email delivery on top of AutoSend, including queueing, retries, idempotency, webhook verification, and delivery lifecycle tracking.
 
@@ -32,7 +32,7 @@ A [Convex component](https://docs.convex.dev/components) for transactional email
 ## Installation
 
 ```bash
-npm install @mzedstudio/autosend convex
+npm install @autosend/convex convex
 ```
 
 ## Setup
@@ -42,7 +42,7 @@ npm install @mzedstudio/autosend convex
 ```ts
 // convex/convex.config.ts
 import { defineApp } from "convex/server";
-import autosend from "@mzedstudio/autosend/convex.config.js";
+import autosend from "@autosend/convex/convex.config.js";
 
 const app = defineApp();
 app.use(autosend, { name: "autosend" });
@@ -53,7 +53,7 @@ export default app;
 
 ```ts
 // convex/email.ts
-import { AutoSend } from "@mzedstudio/autosend";
+import { AutoSend } from "@autosend/convex";
 import { components } from "./_generated/api";
 
 export const autosend = new AutoSend(components.autosend);
@@ -96,7 +96,7 @@ export const configureAutosend = mutation({
 ```ts
 // convex/http.ts
 import { httpRouter } from "convex/server";
-import { registerRoutes } from "@mzedstudio/autosend";
+import { registerRoutes } from "@autosend/convex";
 import { components } from "./_generated/api";
 
 const http = httpRouter();
@@ -169,7 +169,11 @@ await autosend.sendEmail(ctx, {
   html: "<p>See attached.</p>",
   attachments: [
     { filename: "report.pdf", fileUrl: "https://example.com/report.pdf" },
-    { filename: "data.csv", content: "base64-encoded-content", contentType: "text/csv" },
+    {
+      filename: "data.csv",
+      content: "base64-encoded-content",
+      contentType: "text/csv",
+    },
   ],
   unsubscribeGroupId: "marketing",
 });
@@ -216,70 +220,73 @@ await autosend.cleanupOldEmails(ctx, { olderThanMs: 7 * 24 * 60 * 60 * 1000 });
 await autosend.cleanupAbandonedEmails(ctx, { staleAfterMs: 15 * 60 * 1000 });
 
 // Prune old webhook delivery records (default: older than 7 days)
-await autosend.cleanupOldDeliveries(ctx, { olderThanMs: 7 * 24 * 60 * 60 * 1000 });
+await autosend.cleanupOldDeliveries(ctx, {
+  olderThanMs: 7 * 24 * 60 * 60 * 1000,
+});
 ```
 
 ## API Reference
 
 ### `AutoSend` class
 
-| Method | Context | Returns | Notes |
-|---|---|---|---|
-| `sendEmail(ctx, args)` | mutation | `{ emailId, deduped }` | Enqueues and auto-processes one email |
-| `sendBulk(ctx, args)` | mutation | `{ emailIds, acceptedCount }` | Enqueues and auto-processes up to 100 recipients |
-| `status(ctx, { emailId })` | query | `EmailDoc \| null` | Reads current email state |
-| `statusBatch(ctx, { emailIds })` | query | `(EmailDoc \| null)[]` | Batch status for multiple emails |
-| `listEvents(ctx, { emailId, limit? })` | query | `EmailEvent[]` | Webhook events for an email (newest first, default limit 50, max 200) |
-| `cancelEmail(ctx, { emailId })` | mutation | `{ canceled }` | Allowed only from `queued` or `retrying` |
-| `setConfig(ctx, { config, replace? })` | mutation | `{ created }` | Merge by default, full replace when `replace: true` |
-| `getConfig(ctx)` | query | `SafeConfig` | All non-secret config plus `hasApiKey`/`hasWebhookSecret` booleans |
-| `processQueue(ctx, { batchSize? })` | action | `{ processedCount, sentCount, retriedCount, failedCount, hasMoreDue }` | Sends due queued/retrying emails |
-| `cleanupOldEmails(ctx, args)` | action | `{ deletedCount, emailIds, hasMore }` | Removes old terminal emails. Supports `dryRun` |
-| `cleanupAbandonedEmails(ctx, args)` | action | `{ recoveredCount, failedCount, emailIds, hasMore }` | Recovers stale `sending` jobs. Supports `dryRun` |
-| `cleanupOldDeliveries(ctx, args)` | action | `{ deletedCount, hasMore }` | Removes old webhook delivery dedup records |
-| `handleCallback(ctx, args)` | action | `{ ok, eventType, emailId?, duplicate?, error? }` | Verifies and applies webhook callback |
-| `contacts.create(ctx, args)` | action | `{ contact }` | Create a new contact |
-| `contacts.get(ctx, args)` | action | `{ contact }` | Get contact by ID |
-| `contacts.upsert(ctx, args)` | action | `{ contact }` | Create or update contact by email |
-| `contacts.delete(ctx, args)` | action | `{ success, message? }` | Delete contact by ID |
-| `contacts.deleteByUserId(ctx, args)` | action | `{ success, message? }` | Delete contact by user ID |
-| `contacts.removeByEmails(ctx, args)` | action | `{ success, message? }` | Remove contacts by email addresses |
-| `contacts.search(ctx, args)` | action | `{ contacts }` | Search contacts by email addresses |
-| `contacts.getUnsubscribeGroups(ctx, args)` | action | `{ groups }` | Get unsubscribe groups for a contact |
-| `contacts.bulkUpdate(ctx, args)` | action | `{ successCount, failedCount, totalCount }` | Bulk update up to 500 contacts |
-| `lists.list(ctx, args?)` | action | `{ contactLists }` | List all contact lists |
-| `lists.get(ctx, args)` | action | `{ contactList }` | Get contact list by ID |
-| `lists.create(ctx, args)` | action | `{ contactList }` | Create a new contact list |
-| `lists.delete(ctx, args)` | action | `{ success, message }` | Delete a contact list |
-| `lists.getContacts(ctx, args)` | action | `{ contacts, pagination }` | Get paginated contacts in a list |
-| `lists.addContacts(ctx, args)` | action | `{ success, added, created, ... }` | Add contacts to a list |
-| `lists.removeContacts(ctx, args)` | action | `{ success, removed, ... }` | Remove contacts from a list |
+| Method                                     | Context  | Returns                                                                | Notes                                                                 |
+| ------------------------------------------ | -------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `sendEmail(ctx, args)`                     | mutation | `{ emailId, deduped }`                                                 | Enqueues and auto-processes one email                                 |
+| `sendBulk(ctx, args)`                      | mutation | `{ emailIds, acceptedCount }`                                          | Enqueues and auto-processes up to 100 recipients                      |
+| `status(ctx, { emailId })`                 | query    | `EmailDoc \| null`                                                     | Reads current email state                                             |
+| `statusBatch(ctx, { emailIds })`           | query    | `(EmailDoc \| null)[]`                                                 | Batch status for multiple emails                                      |
+| `listEvents(ctx, { emailId, limit? })`     | query    | `EmailEvent[]`                                                         | Webhook events for an email (newest first, default limit 50, max 200) |
+| `cancelEmail(ctx, { emailId })`            | mutation | `{ canceled }`                                                         | Allowed only from `queued` or `retrying`                              |
+| `setConfig(ctx, { config, replace? })`     | mutation | `{ created }`                                                          | Merge by default, full replace when `replace: true`                   |
+| `getConfig(ctx)`                           | query    | `SafeConfig`                                                           | All non-secret config plus `hasApiKey`/`hasWebhookSecret` booleans    |
+| `processQueue(ctx, { batchSize? })`        | action   | `{ processedCount, sentCount, retriedCount, failedCount, hasMoreDue }` | Sends due queued/retrying emails                                      |
+| `cleanupOldEmails(ctx, args)`              | action   | `{ deletedCount, emailIds, hasMore }`                                  | Removes old terminal emails. Supports `dryRun`                        |
+| `cleanupAbandonedEmails(ctx, args)`        | action   | `{ recoveredCount, failedCount, emailIds, hasMore }`                   | Recovers stale `sending` jobs. Supports `dryRun`                      |
+| `cleanupOldDeliveries(ctx, args)`          | action   | `{ deletedCount, hasMore }`                                            | Removes old webhook delivery dedup records                            |
+| `handleCallback(ctx, args)`                | action   | `{ ok, eventType, emailId?, duplicate?, error? }`                      | Verifies and applies webhook callback                                 |
+| `contacts.create(ctx, args)`               | action   | `{ contact }`                                                          | Create a new contact                                                  |
+| `contacts.get(ctx, args)`                  | action   | `{ contact }`                                                          | Get contact by ID                                                     |
+| `contacts.upsert(ctx, args)`               | action   | `{ contact }`                                                          | Create or update contact by email                                     |
+| `contacts.delete(ctx, args)`               | action   | `{ success, message? }`                                                | Delete contact by ID                                                  |
+| `contacts.deleteByUserId(ctx, args)`       | action   | `{ success, message? }`                                                | Delete contact by user ID                                             |
+| `contacts.removeByEmails(ctx, args)`       | action   | `{ success, message? }`                                                | Remove contacts by email addresses                                    |
+| `contacts.search(ctx, args)`               | action   | `{ contacts }`                                                         | Search contacts by email addresses                                    |
+| `contacts.getUnsubscribeGroups(ctx, args)` | action   | `{ groups }`                                                           | Get unsubscribe groups for a contact                                  |
+| `contacts.bulkUpdate(ctx, args)`           | action   | `{ successCount, failedCount, totalCount }`                            | Bulk update up to 500 contacts                                        |
+| `lists.list(ctx, args?)`                   | action   | `{ contactLists }`                                                     | List all contact lists                                                |
+| `lists.get(ctx, args)`                     | action   | `{ contactList }`                                                      | Get contact list by ID                                                |
+| `lists.create(ctx, args)`                  | action   | `{ contactList }`                                                      | Create a new contact list                                             |
+| `lists.delete(ctx, args)`                  | action   | `{ success, message }`                                                 | Delete a contact list                                                 |
+| `lists.getContacts(ctx, args)`             | action   | `{ contacts, pagination }`                                             | Get paginated contacts in a list                                      |
+| `lists.addContacts(ctx, args)`             | action   | `{ success, added, created, ... }`                                     | Add contacts to a list                                                |
+| `lists.removeContacts(ctx, args)`          | action   | `{ success, removed, ... }`                                            | Remove contacts from a list                                           |
 
 ### `sendEmail` arguments
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `to` | `string[]` | yes | Must contain exactly one recipient |
-| `toName` | `string` | no | Display name for the recipient |
-| `from` | `string` | no | Sender address (falls back to `defaultFrom` in config) |
-| `fromName` | `string` | no | Display name for the sender |
-| `replyTo` | `string` | no | Reply-to address (falls back to `defaultReplyTo` in config) |
-| `replyToName` | `string` | no | Display name for reply-to |
-| `cc` | `{ email, name? }[]` | no | Carbon copy recipients |
-| `bcc` | `{ email, name? }[]` | no | Blind carbon copy recipients |
-| `subject` | `string` | conditional | Required unless `templateId` is provided |
-| `html` | `string` | conditional | HTML body; required unless `templateId` or `text` is provided |
-| `text` | `string` | conditional | Plain text body |
-| `templateId` | `string` | no | Provider template identifier |
-| `dynamicData` | `any` | no | Template variables/merge fields |
-| `attachments` | `Attachment[]` | no | File attachments (see below) |
-| `metadata` | `any` | no | Arbitrary metadata stored with the email |
-| `idempotencyKey` | `string` | no | Explicit dedup key (auto-generated from payload if omitted) |
-| `unsubscribeGroupId` | `string` | no | Suppression group identifier |
+| Field                | Type                 | Required    | Notes                                                         |
+| -------------------- | -------------------- | ----------- | ------------------------------------------------------------- |
+| `to`                 | `string[]`           | yes         | Must contain exactly one recipient                            |
+| `toName`             | `string`             | no          | Display name for the recipient                                |
+| `from`               | `string`             | no          | Sender address (falls back to `defaultFrom` in config)        |
+| `fromName`           | `string`             | no          | Display name for the sender                                   |
+| `replyTo`            | `string`             | no          | Reply-to address (falls back to `defaultReplyTo` in config)   |
+| `replyToName`        | `string`             | no          | Display name for reply-to                                     |
+| `cc`                 | `{ email, name? }[]` | no          | Carbon copy recipients                                        |
+| `bcc`                | `{ email, name? }[]` | no          | Blind carbon copy recipients                                  |
+| `subject`            | `string`             | conditional | Required unless `templateId` is provided                      |
+| `html`               | `string`             | conditional | HTML body; required unless `templateId` or `text` is provided |
+| `text`               | `string`             | conditional | Plain text body                                               |
+| `templateId`         | `string`             | no          | Provider template identifier                                  |
+| `dynamicData`        | `any`                | no          | Template variables/merge fields                               |
+| `attachments`        | `Attachment[]`       | no          | File attachments (see below)                                  |
+| `metadata`           | `any`                | no          | Arbitrary metadata stored with the email                      |
+| `idempotencyKey`     | `string`             | no          | Explicit dedup key (auto-generated from payload if omitted)   |
+| `unsubscribeGroupId` | `string`             | no          | Suppression group identifier                                  |
 
 ### `sendBulk` arguments
 
 Same as `sendEmail` except:
+
 - `recipients: string[]` replaces `to` (up to 100 recipients)
 - `recipientData?: Record<string, Record<string, unknown>>` — per-recipient merge fields keyed by email address; interpolates `{{placeholders}}` in `subject`, `html`, and `text`
 - `idempotencyKeyPrefix: string` replaces `idempotencyKey`
@@ -287,14 +294,14 @@ Same as `sendEmail` except:
 
 ### `Attachment` format
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `filename` | `string` | yes | Name of the attached file |
-| `content` | `string` | conditional | Base64-encoded content (provide `content` or `fileUrl`, not both) |
-| `fileUrl` | `string` | conditional | URL to fetch the file from |
-| `contentType` | `string` | no | MIME type (e.g., `application/pdf`) |
-| `disposition` | `string` | no | `attachment` or `inline` |
-| `description` | `string` | no | File description |
+| Field         | Type     | Required    | Notes                                                             |
+| ------------- | -------- | ----------- | ----------------------------------------------------------------- |
+| `filename`    | `string` | yes         | Name of the attached file                                         |
+| `content`     | `string` | conditional | Base64-encoded content (provide `content` or `fileUrl`, not both) |
+| `fileUrl`     | `string` | conditional | URL to fetch the file from                                        |
+| `contentType` | `string` | no          | MIME type (e.g., `application/pdf`)                               |
+| `disposition` | `string` | no          | `attachment` or `inline`                                          |
+| `description` | `string` | no          | File description                                                  |
 
 ### `registerRoutes(http, component, options?)`
 
@@ -313,25 +320,25 @@ Required headers:
 
 ## Config Reference
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `autosendApiKey` | `string` | unset | Bearer token for AutoSend API |
-| `webhookSecret` | `string` | unset | HMAC secret for webhook verification |
-| `testMode` | `boolean` | `true` | Rewrites recipients to `sandboxTo` |
-| `defaultFrom` | `string` | unset | Fallback sender address |
-| `defaultReplyTo` | `string` | unset | Fallback reply-to address |
-| `sandboxTo` | `string[]` | `[]` | Target recipients used in test mode |
-| `rateLimitRps` | `number` | `2` | Max sends per queue run |
-| `retryDelaysMs` | `number[]` | `[5000,10000,20000]` | Retry delay schedule (ms) |
-| `maxAttempts` | `number` | `4` | Total attempts including first try |
-| `sendBatchSize` | `number` | `25` | Max queue items selected per run |
-| `cleanupBatchSize` | `number` | `100` | Max items per cleanup batch |
-| `cleanupOldEmailsMs` | `number` | `604800000` (7 days) | Age threshold for deleting terminal emails |
-| `cleanupAbandonedMs` | `number` | `900000` (15 min) | Stale threshold for recovering abandoned `sending` jobs |
-| `cleanupDeliveriesMs` | `number` | `604800000` (7 days) | Age threshold for pruning webhook delivery records |
-| `providerCompatibilityMode` | `"strict" \| "lenient"` | `"strict"` | Response parsing strictness for provider variance |
-| `autosendBaseUrl` | `string` | `https://api.autosend.com` | Base URL for provider API |
-| `projectId` | `string` | unset | Project ID for Account API Keys (required with `ASA_` prefix keys) |
+| Field                       | Type                    | Default                    | Description                                                        |
+| --------------------------- | ----------------------- | -------------------------- | ------------------------------------------------------------------ |
+| `autosendApiKey`            | `string`                | unset                      | Bearer token for AutoSend API                                      |
+| `webhookSecret`             | `string`                | unset                      | HMAC secret for webhook verification                               |
+| `testMode`                  | `boolean`               | `true`                     | Rewrites recipients to `sandboxTo`                                 |
+| `defaultFrom`               | `string`                | unset                      | Fallback sender address                                            |
+| `defaultReplyTo`            | `string`                | unset                      | Fallback reply-to address                                          |
+| `sandboxTo`                 | `string[]`              | `[]`                       | Target recipients used in test mode                                |
+| `rateLimitRps`              | `number`                | `2`                        | Max sends per queue run                                            |
+| `retryDelaysMs`             | `number[]`              | `[5000,10000,20000]`       | Retry delay schedule (ms)                                          |
+| `maxAttempts`               | `number`                | `4`                        | Total attempts including first try                                 |
+| `sendBatchSize`             | `number`                | `25`                       | Max queue items selected per run                                   |
+| `cleanupBatchSize`          | `number`                | `100`                      | Max items per cleanup batch                                        |
+| `cleanupOldEmailsMs`        | `number`                | `604800000` (7 days)       | Age threshold for deleting terminal emails                         |
+| `cleanupAbandonedMs`        | `number`                | `900000` (15 min)          | Stale threshold for recovering abandoned `sending` jobs            |
+| `cleanupDeliveriesMs`       | `number`                | `604800000` (7 days)       | Age threshold for pruning webhook delivery records                 |
+| `providerCompatibilityMode` | `"strict" \| "lenient"` | `"strict"`                 | Response parsing strictness for provider variance                  |
+| `autosendBaseUrl`           | `string`                | `https://api.autosend.com` | Base URL for provider API                                          |
+| `projectId`                 | `string`                | unset                      | Project ID for Account API Keys (required with `ASA_` prefix keys) |
 
 ### Multi-Project Support
 
@@ -384,8 +391,8 @@ const { projects } = await autosend.listProjects(ctx);
 // Create a new project
 const { project } = await autosend.createProject(ctx, {
   name: "Marketing Emails",
-  domain: "mail.example.com",     // optional
-  regionKey: "us-east-1",         // optional: us-east-1, us-east-2, ap-south-1
+  domain: "mail.example.com", // optional
+  regionKey: "us-east-1", // optional: us-east-1, us-east-2, ap-south-1
 });
 
 // Use the new project's ID for email sending
@@ -421,8 +428,8 @@ const { contact } = await autosend.contacts.create(ctx, {
   email: "jane@example.com",
   firstName: "Jane",
   lastName: "Doe",
-  listIds: ["list_abc123"],        // optional: add to lists on creation
-  customFields: { plan: "pro" },   // optional
+  listIds: ["list_abc123"], // optional: add to lists on creation
+  customFields: { plan: "pro" }, // optional
 });
 
 // Get a contact by ID
@@ -494,7 +501,7 @@ const { contacts, pagination } = await autosend.lists.getContacts(ctx, {
   listId: "cl_abc123",
   page: 1,
   limit: 50,
-  email: "jane@",  // optional: filter by email
+  email: "jane@", // optional: filter by email
 });
 
 // Add contacts to a list (by email or contact ID)
@@ -554,11 +561,11 @@ All list methods accept optional `apiKey` and `projectId` overrides.
 
 Event mapping:
 
-| Event type | Effect |
-|---|---|
-| `email.sent`, `email.delivered` | Mark/keep as sent, update provider status |
-| `email.deferred` | Provider status update only |
-| `email.bounced`, `email.spam_reported` | Mark failed if not already terminal |
+| Event type                                            | Effect                                      |
+| ----------------------------------------------------- | ------------------------------------------- |
+| `email.sent`, `email.delivered`                       | Mark/keep as sent, update provider status   |
+| `email.deferred`                                      | Provider status update only                 |
+| `email.bounced`, `email.spam_reported`                | Mark failed if not already terminal         |
 | `email.opened`, `email.clicked`, `email.unsubscribed` | Event recorded, provider status update only |
 
 ## Direct Component Functions
@@ -605,23 +612,23 @@ The package exports TypeScript types and Convex validators for use in your own f
 ```ts
 import type {
   // Email
-  EmailStatus,           // "queued" | "retrying" | "sending" | "sent" | "failed" | "canceled"
-  SendEmailArgs,         // Arguments for sendEmail
-  SendBulkArgs,          // Arguments for sendBulk
-  EmailRecipient,        // { email: string; name?: string }
-  Attachment,            // Attachment object shape
-  ConfigUpdate,          // Fields accepted by setConfig
-  SafeConfig,            // Return type of getConfig
+  EmailStatus, // "queued" | "retrying" | "sending" | "sent" | "failed" | "canceled"
+  SendEmailArgs, // Arguments for sendEmail
+  SendBulkArgs, // Arguments for sendBulk
+  EmailRecipient, // { email: string; name?: string }
+  Attachment, // Attachment object shape
+  ConfigUpdate, // Fields accepted by setConfig
+  SafeConfig, // Return type of getConfig
   DeliveryCleanupResult, // Return type of cleanupOldDeliveries
   ProviderCompatibilityMode, // "strict" | "lenient"
   // Projects
-  Project,               // Project object shape
-  ProjectDomain,         // Project domain with verification status
+  Project, // Project object shape
+  ProjectDomain, // Project domain with verification status
   CreateProjectResult,
   ListProjectsResult,
   DeleteProjectResult,
   // Contacts
-  Contact,               // Contact object shape
+  Contact, // Contact object shape
   CreateContactArgs,
   CreateContactResult,
   GetContactResult,
@@ -634,9 +641,9 @@ import type {
   UnsubscribeGroup,
   BulkUpdateContactsResult,
   // Contact Lists
-  ContactList,           // Contact list object shape
-  ContactListType,       // "list" | "segment"
-  Pagination,            // { page, limit, total, pages }
+  ContactList, // Contact list object shape
+  ContactListType, // "list" | "segment"
+  Pagination, // { page, limit, total, pages }
   ListContactListsResult,
   GetContactListResult,
   CreateContactListResult,
@@ -645,7 +652,7 @@ import type {
   AddContactsToListResult,
   RemoveContactsFromListResult,
   BulkAddError,
-} from "@mzedstudio/autosend";
+} from "@autosend/convex";
 
 // Convex validators (for use in your own function args/returns)
 import {
@@ -713,16 +720,16 @@ import {
   removeContactsFromListArgsValidator,
   removeContactsFromListResultValidator,
   bulkAddErrorValidator,
-} from "@mzedstudio/autosend";
+} from "@autosend/convex";
 ```
 
 ## Testing
 
-Use `@mzedstudio/autosend/test` with `convex-test`:
+Use `@autosend/convex/test` with `convex-test`:
 
 ```ts
 import { convexTest } from "convex-test";
-import { register } from "@mzedstudio/autosend/test";
+import { register } from "@autosend/convex/test";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -734,3 +741,7 @@ register(t, "autosend");
 ## License
 
 Apache-2.0
+
+## Credits
+
+Originally created by [mzedstudio](https://github.com/mzedstudio) as `@autosend/convex`. Adopted and maintained by [AutoSend](https://autosend.com) as the official Convex integration.

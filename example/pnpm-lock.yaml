@@ -8,12 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@autosend/convex':
+        specifier: file:..
+        version: file:..(convex@1.31.7(react@19.2.4))
       '@base-ui/react':
         specifier: ^1.4.1
         version: 1.4.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@mzedstudio/autosend':
-        specifier: file:..
-        version: file:..(convex@1.31.7(react@19.2.4))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -73,6 +73,12 @@ packages:
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
     engines: {node: '>=6.0.0'}
+
+  '@autosend/convex@file:..':
+    resolution: {directory: .., type: directory}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      convex: ^1.31.7
 
   '@babel/runtime@7.29.2':
     resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
@@ -432,11 +438,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@mzedstudio/autosend@file:..':
-    resolution: {directory: .., type: directory}
-    peerDependencies:
-      convex: ^1.31.7
 
   '@next/env@16.1.6':
     resolution: {integrity: sha512-N1ySLuZjnAtN3kFnwhAwPvZah8RJxKasD7x1f8shFqhncnWZn4JMfg37diLNuoHsLAlrDfM3g4mawVdtAG8XLQ==}
@@ -869,6 +870,10 @@ snapshots:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
 
+  '@autosend/convex@file:..(convex@1.31.7(react@19.2.4))':
+    dependencies:
+      convex: 1.31.7(react@19.2.4)
+
   '@babel/runtime@7.29.2': {}
 
   '@base-ui/react@1.4.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
@@ -1108,10 +1113,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
-
-  '@mzedstudio/autosend@file:..(convex@1.31.7(react@19.2.4))':
-    dependencies:
-      convex: 1.31.7(react@19.2.4)
 
   '@next/env@16.1.6': {}
 

@@ -1,22 +1,37 @@
 {
-  "name": "@mzedstudio/autosend",
-  "description": "Transactional email queueing, retries, webhook verification, and lifecycle tracking for Convex using AutoSend.",
-  "version": "0.4.0",
+  "name": "@autosend/convex",
+  "description": "Convex component for AutoSend — transactional email queueing, retries, webhook verification, and lifecycle tracking for Convex using AutoSend.",
+  "version": "0.4.1",
   "license": "Apache-2.0",
-  "author": "mzedstudio",
+  "author": "AutoSend <hello@autosend.com> (https://autosend.com)",
+  "contributors": [
+    "mzedstudio (original author, https://github.com/mzedstudio)"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/raymond-UI/convex-autosend.git"
+    "url": "git+https://github.com/autosendhq/autosend-convex.git"
   },
-  "homepage": "https://github.com/raymond-UI/convex-autosend#readme",
-  "bugs": "https://github.com/raymond-UI/convex-autosend/issues",
+  "homepage": "https://github.com/autosendhq/autosend-convex#readme",
+  "bugs": {
+    "url": "https://github.com/autosendhq/autosend-convex/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "convex",
     "convex-component",
     "email",
     "autosend",
     "transactional-email",
-    "webhooks"
+    "transactional",
+    "webhooks",
+    "smtp",
+    "sendgrid-alternative",
+    "resend-alternative"
   ],
   "type": "module",
   "scripts": {
@@ -25,17 +40,20 @@
     "dev:frontend": "cd example && npm run dev",
     "dev:build": "chokidar 'tsconfig*.json' 'src/**/*.ts' -i '**/*.test.ts' -c 'npm run build:codegen' --initial",
     "build": "tsc --project ./tsconfig.build.json",
-    "postbuild": "cd example && pnpm install --ignore-scripts --no-frozen-lockfile",
     "build:codegen": "npx convex codegen --component-dir ./src/component && npm run build",
     "build:clean": "rm -rf dist *.tsbuildinfo && npm run build:codegen",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest --clearScreen false",
-    "preversion": "npm run build:clean && npm test && npm run typecheck"
+    "preversion": "npm run build:clean && npm test && npm run typecheck",
+    "prepublishOnly": "npm run build:clean && npm test && npm run typecheck"
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "main": "./dist/client/index.js",
   "types": "./dist/client/index.d.ts",
@@ -74,6 +92,6 @@
     "npm-run-all2": "^8.0.4",
     "typescript": "^5.6.3",
     "vite": "^8.0.10",
-    "vitest": "^2.1.5"
+    "vitest": "^4.1.7"
   }
 }
