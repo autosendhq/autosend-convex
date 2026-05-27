@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@autosend/convex)](https://www.npmjs.com/package/@autosend/convex)
 [![npm downloads](https://img.shields.io/npm/dw/@autosend/convex)](https://www.npmjs.com/package/@autosend/convex)
+[![Convex Component](https://www.convex.dev/components/badge/autosend/convex)](https://www.convex.dev/components/autosend/convex)
 
 A [Convex component](https://docs.convex.dev/components) for transactional email delivery on top of AutoSend, including queueing, retries, idempotency, webhook verification, and delivery lifecycle tracking.
 
