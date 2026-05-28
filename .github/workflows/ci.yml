@@ -34,7 +34,12 @@ jobs:
 
       - name: Generate Convex types
         # src/component/_generated/ is gitignored; typecheck/test/build all need it.
-        run: npx convex codegen --component-dir ./src/component
+        # Codegen is fully local but the convex CLI requires CONVEX_DEPLOYMENT to
+        # be set as a sanity check — a dummy value satisfies it without making
+        # any network calls.
+        env:
+          CONVEX_DEPLOYMENT: anonymous:ci-codegen
+        run: npx convex codegen --component-dir ./src/component --typecheck disable
 
       - name: Typecheck
         run: pnpm run typecheck
