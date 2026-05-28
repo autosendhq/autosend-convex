@@ -44,6 +44,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Convex types
+        # src/component/_generated/ is gitignored; typecheck/test/build all need it.
+        run: npx convex codegen --component-dir ./src/component
+
       - name: Verify tag matches package version
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"

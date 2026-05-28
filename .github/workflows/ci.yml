@@ -32,6 +32,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Convex types
+        # src/component/_generated/ is gitignored; typecheck/test/build all need it.
+        run: npx convex codegen --component-dir ./src/component
+
       - name: Typecheck
         run: pnpm run typecheck
 
@@ -39,4 +43,4 @@ jobs:
         run: pnpm test
 
       - name: Build
-        run: pnpm run build:clean
+        run: pnpm run build
