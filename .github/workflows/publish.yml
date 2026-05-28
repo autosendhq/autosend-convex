@@ -1,0 +1,75 @@
+name: Publish @autosend/convex
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment:
+      name: npm-publish
+      url: https://www.npmjs.com/package/@autosend/convex
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Upgrade npm
+        # Trusted Publishers needs npm >= 11.5.1; Node 22 ships with 10.
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Publishing @autosend/convex@$PKG_VERSION"
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Publish to npm with provenance
+        # --ignore-scripts skips prepublishOnly, which would re-run `convex codegen`
+        # and fail without network auth. The steps above cover the same checks.
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [[ "$PKG_VERSION" == *-* ]]; then
+            DIST_TAG=$(echo "$PKG_VERSION" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+-([a-zA-Z0-9]+).*/\1/')
+            echo "Publishing prerelease @autosend/convex@$PKG_VERSION with dist-tag '$DIST_TAG'"
+            npm publish --provenance --access public --ignore-scripts --tag "$DIST_TAG"
+          else
+            echo "Publishing @autosend/convex@$PKG_VERSION with dist-tag 'latest'"
+            npm publish --provenance --access public --ignore-scripts
+          fi

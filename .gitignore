@@ -3,9 +3,10 @@ node_modules
 .pnp
 .pnp.js
 
-# Convex generated files (component source only — example _generated is committed for Vercel)
-src/component/_generated/
+# Convex example app build output
 example/.next/
+
+# src/component/_generated/ is intentionally committed; regenerate via `pnpm dev` on schema changes.
 
 # Build outputs
 dist
