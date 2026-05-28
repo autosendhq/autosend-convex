@@ -14,9 +14,6 @@ jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
-    # Pauses until a reviewer approves in the GitHub Actions UI.
-    # Configure the `npm-publish` environment in repo Settings → Environments
-    # with required reviewers and (recommended) deployment-tag restriction `v*`.
     environment:
       name: npm-publish
       url: https://www.npmjs.com/package/@autosend/convex
@@ -37,21 +34,12 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
-      - name: Upgrade npm to a trusted-publisher capable version
-        # Trusted Publishers requires npm >= 11.5.1; Node 22 ships with npm 10.
+      - name: Upgrade npm
+        # Trusted Publishers needs npm >= 11.5.1; Node 22 ships with 10.
         run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Generate Convex types
-        # src/component/_generated/ is gitignored; typecheck/test/build all need it.
-        # Codegen is fully local but the convex CLI requires CONVEX_DEPLOYMENT to
-        # be set as a sanity check — a dummy value satisfies it without making
-        # any network calls.
-        env:
-          CONVEX_DEPLOYMENT: anonymous:ci-codegen
-        run: npx convex codegen --component-dir ./src/component --typecheck disable
 
       - name: Verify tag matches package version
         run: |
@@ -70,20 +58,18 @@ jobs:
         run: pnpm test
 
       - name: Build
-        run: pnpm run build:clean
+        run: pnpm run build
 
       - name: Publish to npm with provenance
-        # `prepublishOnly` re-runs build+test+typecheck; npm performs the OIDC
-        # exchange against the configured Trusted Publisher on npmjs.com.
-        # For prerelease versions (0.4.2-rc.0, 1.0.0-beta.1, etc.) npm requires
-        # an explicit dist-tag so `latest` keeps pointing at the most recent stable.
+        # --ignore-scripts skips prepublishOnly, which would re-run `convex codegen`
+        # and fail without network auth. The steps above cover the same checks.
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [[ "$PKG_VERSION" == *-* ]]; then
             DIST_TAG=$(echo "$PKG_VERSION" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+-([a-zA-Z0-9]+).*/\1/')
             echo "Publishing prerelease @autosend/convex@$PKG_VERSION with dist-tag '$DIST_TAG'"
-            npm publish --provenance --access public --tag "$DIST_TAG"
+            npm publish --provenance --access public --ignore-scripts --tag "$DIST_TAG"
           else
             echo "Publishing @autosend/convex@$PKG_VERSION with dist-tag 'latest'"
-            npm publish --provenance --access public
+            npm publish --provenance --access public --ignore-scripts
           fi

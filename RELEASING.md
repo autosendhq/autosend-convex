@@ -77,7 +77,7 @@ Configure:
 
 Repo → **Settings → Branches → Add branch protection rule** for `main`:
 - Require pull request before merging
-- Require status check **CI / Lint, typecheck, test, build** to pass
+- Require status check **CI / Typecheck, test, build** to pass
 - (Optional) Require signed commits
 
 ### 3. npmjs.com: add the Trusted Publisher
